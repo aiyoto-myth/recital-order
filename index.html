@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recital Order: a running order where every dancer has time to change</title>
+<meta name="description" content="Free recital running order builder for dance studios. Paste your routines and who is in them. It finds an order with enough numbers between each dancer's routines for costume changes, then you drag it to taste.">
+<link rel="canonical" href="https://samsbench.com/recital-order/">
+<meta property="og:title" content="Recital Order: no more index cards on the studio floor">
+<meta property="og:description" content="Paste your routines, get a running order with time for every costume change. Free, no sign-up.">
+<meta property="og:url" content="https://samsbench.com/recital-order/">
+<meta property="og:image" content="https://samsbench.com/recital-order/og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --wing:#141116; --wing2:#221d25; --wingInk:#f4efe6;
+  --paper:#fbf6ec; --card:#fffdf8; --ink:#1b1820; --ink2:#3f3946; --line:#ddd2bf;
+  --tape:#f2c230; --tapeInk:#2a2000; --red:#d23a2a; --redBg:#fde6e2; --redInk:#7a1a10;
+  --close:#b86a00; --closeBg:#fff1d6; --ok:#1f7a5a; --okBg:#e2f4ec; --blue:#2c5fc8; --focus:#2c5fc8;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif}
+h1,h2,h3,.num{font-family:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;line-height:1;margin:0;letter-spacing:.01em}
+h2{font-weight:900;font-size:30px;text-transform:uppercase}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+
+/* the wings: dark band with the title, like the black wall the running order gets taped to */
+.wings{background:var(--wing);color:var(--wingInk);padding:14px 0 26px;border-bottom:6px solid var(--tape)}
+.top{display:flex;align-items:center;gap:10px}
+.top b{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:22px;text-transform:uppercase;letter-spacing:.04em}
+.top .sp{flex:1}
+.top a{color:var(--wingInk);font-weight:700;text-decoration:none;border:2px solid var(--wingInk);border-radius:999px;padding:3px 14px}
+.hero{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:end;margin-top:18px}
+.hero h1{font-weight:900;font-size:clamp(40px,7vw,78px);text-transform:uppercase}
+.hero h1 span{background:var(--tape);color:var(--tapeInk);padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.hero p{font-size:19px;margin:14px 0 0;max-width:34em}
+.cards{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.cards li{background:var(--wing2);border-left:5px solid var(--tape);padding:8px 12px;border-radius:4px}
+.cards b{display:block}
+
+main{padding-bottom:60px}
+.grid{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:24px;margin-top:24px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.panel + .panel{margin-top:18px}
+.panel > header{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.panel > header .num{font-weight:900;font-size:34px;color:var(--red)}
+.panel p{margin:6px 0}
+textarea{width:100%;min-height:210px;border:2px solid var(--line);border-radius:10px;padding:10px;background:#fff;font-size:15px;line-height:1.45;resize:vertical}
+textarea:focus,input:focus,select:focus{border-color:var(--ink);outline:none}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:2px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:10px;padding:8px 14px;font-weight:700;line-height:1.2}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.tape{background:var(--tape);border-color:var(--tapeInk);color:var(--tapeInk)}
+.btn.small{padding:4px 10px;border-radius:8px;font-size:15px}
+.btn:disabled{opacity:.5;cursor:default}
+.formats{font-size:15px;margin-top:8px}
+.formats summary{cursor:pointer;font-weight:700}
+.formats code{display:block;background:var(--paper);border-radius:6px;padding:6px 8px;margin:4px 0;white-space:pre-wrap;font-size:14px}
+.sum{margin-top:10px;font-weight:700}
+.warns{margin:8px 0 0;padding-left:20px;font-size:15px}
+.warns li{margin:3px 0}
+.rule{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.rule label{font-weight:700}
+.stepper{display:inline-flex;align-items:center;border:2px solid var(--ink);border-radius:10px;overflow:hidden}
+.stepper button{border:0;background:var(--ink);color:var(--paper);width:38px;height:38px;font-size:22px;font-weight:700}
+.stepper output{min-width:44px;text-align:center;font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:26px}
+select,input[type=text],input[type=email],input[type=search]{border:2px solid var(--line);border-radius:10px;padding:7px 10px;background:#fff;min-width:0}
+.hint{font-size:15px}
+.err{color:var(--redInk);font-weight:700}
+.okmsg{color:var(--ok);font-weight:700}
+
+/* running order */
+.ohead{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:12px}
+.ohead h2{flex:1 1 auto}
+.stamp{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:22px;text-transform:uppercase;border:3px solid currentColor;border-radius:6px;padding:2px 10px;transform:rotate(-2deg);display:inline-block}
+.stamp.good{color:var(--ok)}
+.stamp.bad{color:var(--red)}
+.busy{display:flex;align-items:center;gap:10px;margin:8px 0}
+.bar{flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--tape)}
+.empty{border:2px dashed var(--line);border-radius:12px;padding:28px 18px;text-align:center}
+.empty b{display:block;font-size:20px;margin-bottom:6px}
+ol.ro{list-style:none;margin:0;padding:0}
+.ri{position:relative;display:grid;grid-template-columns:44px 30px minmax(0,1fr) auto 34px;gap:4px 10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 8px 8px 0;margin:6px 0}
+.ri .n{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:28px;text-align:right}
+.ri .h{touch-action:none;cursor:grab;width:30px;height:36px;border:0;background:transparent;display:grid;place-items:center;color:var(--ink2)}
+.ri .h svg{width:16px;height:22px}
+.ri .t{min-width:0}
+.ri .t b{display:block;overflow-wrap:anywhere}
+.ri .t small{font-size:14px}
+.ri .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.tag{font-size:13px;font-weight:700;border-radius:4px;padding:1px 6px;background:var(--paper);border:1px solid var(--line);white-space:nowrap}
+.tag.lock{background:var(--tape);border-color:var(--tapeInk);color:var(--tapeInk)}
+.ri .menu{border:0;background:transparent;width:34px;height:34px;border-radius:8px;font-size:22px;line-height:1}
+.ri .menu:hover{background:var(--paper)}
+.ri.hit{outline:3px solid var(--blue)}
+.ri.drag{opacity:.55}
+.ri.bad{border-color:var(--red);box-shadow:inset 5px 0 0 var(--red)}
+.ri .qc{grid-column:3 / -1;display:grid;gap:3px}
+.qc span{display:block;border-radius:4px;padding:2px 8px;font-size:15px}
+.qc .q{background:var(--redBg);color:var(--redInk)}
+.qc .c{background:var(--closeBg);color:#5a3500}
+.ro .inter{display:flex;align-items:center;gap:10px;margin:12px 0;font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:22px;text-transform:uppercase}
+.ro .inter::before,.ro .inter::after{content:"";flex:1;border-top:3px dashed var(--ink)}
+.drop{height:4px;background:var(--blue);border-radius:2px;margin:-2px 0}
+.pop{position:absolute;right:6px;top:44px;z-index:5;background:#fff;border:2px solid var(--ink);border-radius:10px;padding:10px;width:min(300px,86vw);box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.pop label{display:flex;gap:8px;align-items:center;margin:4px 0}
+.pop .row{margin-top:6px}
+.find{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
+.find input{flex:1 1 180px}
+.found{font-size:15px;margin:4px 0 8px}
+.outs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:8px}
+.out{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:8px}
+.out b{font-size:18px}
+.out p{margin:0;font-size:15px}
+.out .row{margin-top:auto}
+.pro-tag{font-size:12px;font-weight:700;background:var(--ink);color:var(--paper);border-radius:4px;padding:1px 6px;vertical-align:middle}
+.shows{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.shows button[aria-pressed=true]{background:var(--tape);border-color:var(--tapeInk);color:var(--tapeInk)}
+#proSec{margin-top:26px;background:var(--wing);color:var(--wingInk);border-radius:12px;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+#proSec h2{color:var(--tape)}
+#proSec ul{margin:8px 0;padding-left:20px}
+#proSec .btn{border-color:var(--wingInk)}
+#proSec .btn.ghost{color:var(--wingInk)}
+#proSec .btn.tape{border-color:var(--tape)}
+#proSec input{border-color:#5a5260;background:#fff;color:var(--ink)}
+#proSec .err{color:#ffb4a8}
+#proSec .okmsg{color:#9be3c4}
+.price{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:48px;line-height:1}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-weight:700;z-index:20;max-width:92vw}
+.how{margin-top:26px}
+.how h2{margin-bottom:8px}
+.how ol{padding-left:20px;max-width:46em}
+footer{border-top:1px solid var(--line);padding:18px 0 30px;font-size:15px}
+#printArea{display:none}
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr}
+  #proSec{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  .ri{grid-template-columns:36px 26px minmax(0,1fr) 34px}
+  .ri .tags{grid-column:3 / 4;grid-row:2;justify-content:flex-start}
+  .ri .tags:empty{display:none}
+  .ri .menu{grid-row:1;grid-column:4}
+  .ri .n{font-size:24px}
+  h2{font-size:26px}
+}
+@media print{
+  @page{margin:12mm}
+  body{background:#fff}
+  body > *:not(#printArea){display:none!important}
+  #printArea{display:block!important;color:#000;font:12pt/1.35 "Atkinson Hyperlegible",Arial,sans-serif}
+  .pa h1{font-size:26pt;margin:0 0 4pt;text-transform:uppercase}
+  .pa .sub{margin:0 0 10pt}
+  .pa table{width:100%;border-collapse:collapse}
+  .pa td,.pa th{border-bottom:1px solid #999;padding:4pt 6pt;text-align:left;vertical-align:top}
+  .pa th{font-size:10pt;text-transform:uppercase}
+  .pa .n{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;font-size:16pt;width:36pt}
+  .pa .ix td{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:900;text-transform:uppercase;text-align:center;border-bottom:2px dashed #000;padding:8pt}
+  .pa .warnq{font-weight:700}
+  .pa .cards{display:grid;grid-template-columns:1fr 1fr;gap:6pt}
+  .pa .card{border:1px dashed #000;padding:6pt 8pt;break-inside:avoid}
+  .pa .card h3{font-size:15pt;margin:0 0 3pt;font-family:"Big Shoulders Display",Impact,sans-serif}
+  .pa .card ol{margin:0;padding-left:16pt}
+  .pa .foot{margin-top:10pt;font-size:9pt}
+  .pa tr{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="wings">
+  <div class="wrap">
+    <div class="top"><b>Recital Order</b><span class="sp"></span><a href="#proSec">Pro</a></div>
+    <div class="hero">
+      <div>
+        <h1>Every dancer gets <span>time to change.</span></h1>
+        <p>Paste your routines and who is in each one. You get a running order with enough numbers between each dancer's routines for a costume change. Then drag it around until it feels like your show.</p>
+      </div>
+      <ul class="cards">
+        <li><b>No index cards on the floor</b>Copy straight from your class lists or a spreadsheet.</li>
+        <li><b>You still run the show</b>Lock your opener and finale, keep the littles in Act 1, drag anything.</li>
+        <li><b>Free, no sign-up</b>Everything stays in this browser.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="shows" id="shows" hidden></div>
+  <div class="grid">
+    <div>
+      <section class="panel" id="s1">
+        <header><span class="num">1</span><h2>Your routines</h2></header>
+        <p>One routine per line: its name, a colon, then the dancers.</p>
+        <textarea id="roster" spellcheck="false" placeholder="Tiny Tots Ballet: Ava M, Mia K, Zoe L&#10;Jazz II: Ava M, Lily R, Harper G&#10;Company Tap: Mia K, Lily R, Nora T&#10;Finale and bows:"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="readBtn" type="button">Read my list</button>
+          <button class="btn ghost" id="sampleBtn" type="button">Try a sample recital</button>
+        </div>
+        <details class="formats">
+          <summary>Other ways to paste</summary>
+          <p>Two columns from a spreadsheet or your studio software, one row per dancer in a routine (either column first, a header row is fine):</p>
+          <code>Ava M	Tiny Tots Ballet
+Mia K	Tiny Tots Ballet
+Ava M	Jazz II</code>
+          <p>Or blocks: the routine name on its own line, its dancers under it, an empty line between routines.</p>
+          <p>Write each dancer's name the same way every time. That is how the tool knows "Ava M" in ballet is the same girl as "Ava M" in jazz.</p>
+        </details>
+        <div id="readOut" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" id="s2">
+        <header><span class="num">2</span><h2>Your rules</h2></header>
+        <div class="rule">
+          <label id="gapLbl">Numbers between a dancer's routines, at least</label>
+          <span class="stepper" role="group" aria-labelledby="gapLbl"><button type="button" id="gapMinus" aria-label="Fewer">−</button><output id="gapOut">3</output><button type="button" id="gapPlus" aria-label="More">+</button></span>
+        </div>
+        <p class="hint">Fewer than this is a quick change. Many studios use 3.</p>
+        <div class="rule">
+          <label for="interSel">Intermission</label>
+          <select id="interSel"></select>
+        </div>
+        <p class="hint">The intermission counts as plenty of time to change.</p>
+        <div class="row" style="margin-top:12px"><button class="btn tape" id="buildBtn" type="button">Build the running order</button></div>
+      </section>
+    </div>
+
+    <section class="panel" id="s3">
+      <div class="ohead">
+        <h2 id="oTitle">Running order</h2>
+        <span id="stamp"></span>
+      </div>
+      <div id="busy" class="busy" hidden><span id="busyTxt">Looking for an order…</span><span class="bar"><i id="busyBar"></i></span><button class="btn small ghost" id="stopBtn" type="button">Stop</button></div>
+      <div id="oTools" class="row" hidden>
+        <button class="btn small" id="moreBtn" type="button">Keep looking</button>
+        <button class="btn small ghost" id="freshBtn" type="button">Start over from scratch</button>
+      </div>
+      <div class="find" id="findRow" hidden>
+        <label for="findIn" style="font-weight:700">Find a dancer</label>
+        <input type="search" id="findIn" list="dancerList" placeholder="Type a name" autocomplete="off">
+        <datalist id="dancerList"></datalist>
+      </div>
+      <div class="found" id="found" aria-live="polite"></div>
+      <div id="order"><div class="empty"><b>Your running order shows up here.</b>Paste your routines on the left (or try the sample), then press Build.</div></div>
+      <p class="hint" id="dragHint" hidden>Drag the grip to move a routine. The ⋯ menu locks it in place, keeps it in one act, or marks it as needing no costume change.</p>
+
+      <div id="outsWrap" hidden>
+        <h2 style="margin-top:22px">Print and send</h2>
+        <div class="outs">
+          <div class="out"><b>Running order</b><p>Numbered list with intermission, for the stage manager, the music person and the program.</p>
+            <div class="row"><button class="btn small" id="printOrder" type="button">Print</button><button class="btn small ghost" id="copyOrder" type="button">Copy as text</button></div></div>
+          <div class="out"><b>Backstage quick-change list <span class="pro-tag">PRO</span></b><p>Every tight change, in show order: who, out of which routine, into which, and how many numbers they have.</p>
+            <div class="row"><button class="btn small" id="printQuick" type="button">Print</button></div></div>
+          <div class="out"><b>Each dancer's numbers <span class="pro-tag">PRO</span></b><p>One card per dancer with their routine numbers, A to Z. Hand them out or paste into your parent email.</p>
+            <div class="row"><button class="btn small" id="printCards" type="button">Print cards</button><button class="btn small ghost" id="copyCards" type="button">Copy as text</button><button class="btn small ghost" id="csvBtn" type="button">CSV</button></div></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn small ghost" id="backupBtn" type="button">Save a backup file</button>
+          <label class="btn small ghost" for="restoreIn" style="cursor:pointer">Open a backup</label>
+          <input type="file" id="restoreIn" accept=".json,application/json" hidden>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section id="proSec">
+    <div>
+      <h2>Recital Order Pro</h2>
+      <p class="price"><span id="proPrice">$29</span> <span style="font-size:20px">once</span></p>
+      <ul>
+        <li>Several shows (Saturday 1 pm, Saturday 6 pm, Sunday…), each with its own order</li>
+        <li>Backstage quick-change list</li>
+        <li>Each dancer's numbers: printable cards, text for parent emails, CSV</li>
+      </ul>
+      <p>One payment, no subscription. Building and checking the order stays free.</p>
+    </div>
+    <div>
+      <div id="proBuy">
+        <p><a class="btn tape" id="buyLink" href="#" rel="noopener">Get Pro</a></p>
+        <label for="proKey"><b>Already bought? Enter the email you paid with, or a gift code.</b></label>
+        <div class="row" style="margin-top:6px"><input type="text" id="proKey" autocomplete="email" style="flex:1 1 200px"><button class="btn ghost" id="proGo" type="button">Unlock</button></div>
+        <p id="proMsg" aria-live="polite"></p>
+      </div>
+      <div id="proState"></div>
+    </div>
+  </section>
+
+  <section class="how">
+    <h2>How the order is worked out</h2>
+    <ol>
+      <li>For every dancer it counts the numbers between one of their routines and the next. Fewer than your rule is a quick change.</li>
+      <li>It shuffles the unlocked routines thousands of times a second and keeps the order with the fewest quick changes, then the fewest very tight ones. Back-to-back numbers count worst.</li>
+      <li>Locked routines never move. "Act 1 only" and "Act 2 only" are kept. Routines marked "no costume change" (bows, a finale in the last costume) don't count.</li>
+      <li>When an order with zero quick changes doesn't exist, it says who can't fit and why, and the backstage list tells you who needs a helper.</li>
+    </ol>
+  </section>
+</main>
+<footer><div class="wrap">Recital Order is a small tool from <a href="https://samsbench.com/">Sam's Bench</a>. Your lists never leave this browser.</div></footer>
+<div id="printArea"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script id="coreSrc">
+/*CORE-START*/
+var RO = (function(){
+'use strict';
+
+function clean(s){ return String(s == null ? '' : s).replace(/[ \s]+/g, ' ').trim(); }
+/* Same person if the names match ignoring case, dots, commas and extra spaces ("Ava M." = "ava m"). */
+function nameKey(s){ return clean(s).toLowerCase().replace(/[.,'"’`]/g, '').replace(/\s+/g, ' ').trim(); }
+
+var HEAD_DANCER = /^(dancer|dancers|student|students|name|names|performer|child|first name|student name|dancer name)$/i;
+var HEAD_ROUTINE = /^(routine|routines|dance|dances|class|classes|number|piece|song|act|title|class name|routine name)$/i;
+
+function splitNames(s){
+  return s.split(/\s*(?:,|;|\/|\||\band\b|&)\s*/i).map(clean).filter(function(x){ return x && !/^\d+$/.test(x); });
+}
+function splitRow(line){
+  if(line.indexOf('\t') >= 0) return line.split('\t').map(clean);
+  // simple CSV with quotes
+  var out = [], cur = '', q = false;
+  for(var i = 0; i < line.length; i++){
+    var ch = line[i];
+    if(q){ if(ch === '"'){ if(line[i + 1] === '"'){ cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if(ch === '"') q = true;
+    else if(ch === ',') { out.push(clean(cur)); cur = ''; }
+    else cur += ch;
+  }
+  out.push(clean(cur));
+  return out;
+}
+
+/* Accepts three shapes, picked automatically:
+   A  one routine per line:      "Tiny Tap: Ava M, Mia K, Zoe L"  (":" or " - " or a tab after the routine name)
+   B  two columns, one row per dancer+routine (spreadsheet / studio software export), either column order, header optional
+   C  blocks: routine name on its own line, its dancers on the following lines, a blank line between routines
+   Returns {routines:[{name, dancers:[display names]}], shape, warnings:[]} */
+function parseRoster(text){
+  var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  var nonEmpty = lines.map(function(l){ return l.replace(/[ \u00a0]+/g, ' ').trim(); }).filter(Boolean);
+  var warnings = [];
+  if(!nonEmpty.length) return {routines: [], shape: '', warnings: []};
+
+  // Shape B: most rows split into exactly 2 (or more, take the first two non-empty) cells with tab or comma, and one column repeats a lot
+  var rows = nonEmpty.map(function(l){ return splitRow(l).filter(function(c){ return c !== ''; }); });
+  var twoCol = rows.filter(function(r){ return r.length === 2; }).length;
+  var colonish = nonEmpty.filter(function(l){ return /^[^:\t]{1,80}:\s*\S/.test(l); }).length;
+  // lines that look like "Routine: a, b" / "Routine - a, b" / "Routine<tab>a, b" (several names after the routine)
+  var sepish = nonEmpty.filter(function(l){
+    if(/^[^:\t]{1,80}:\s*\S/.test(l) || /^.{1,80}?\s[-–—]\s\S/.test(l)) return true;
+    var t = l.split('\t'); return t.length === 2 && /[,;]/.test(t[1]);
+  }).length;
+  if(twoCol >= Math.max(2, nonEmpty.length * 0.7) && sepish < nonEmpty.length * 0.3){
+    var body = rows.filter(function(r){ return r.length >= 2; });
+    var swap = null;
+    if(body.length && (HEAD_DANCER.test(body[0][0]) || HEAD_ROUTINE.test(body[0][0]) || HEAD_DANCER.test(body[0][1]) || HEAD_ROUTINE.test(body[0][1]))){
+      swap = HEAD_ROUTINE.test(body[0][0]) || HEAD_DANCER.test(body[0][1]);
+      body = body.slice(1);
+    }
+    if(swap === null){
+      // the routine column is the one whose values repeat more
+      var d0 = {}, d1 = {};
+      body.forEach(function(r){ d0[nameKey(r[0])] = 1; d1[nameKey(r[1])] = 1; });
+      swap = Object.keys(d0).length < Object.keys(d1).length;   // col 0 repeats more -> col 0 is the routine
+    }
+    var byR = {}, orderR = [];
+    body.forEach(function(r){
+      var dn = swap ? r[1] : r[0], rn = swap ? r[0] : r[1];
+      var k = nameKey(rn);
+      if(!k || !nameKey(dn)) return;
+      if(!byR[k]){ byR[k] = {name: rn, dancers: []}; orderR.push(k); }
+      byR[k].dancers.push(dn);
+    });
+    return finish(orderR.map(function(k){ return byR[k]; }), 'rows', warnings);
+  }
+
+  // Shape C: blank-line separated blocks whose first line has no separator
+  var blocks = [], cur = [];
+  lines.forEach(function(l){ l = clean(l); if(!l){ if(cur.length) blocks.push(cur); cur = []; } else cur.push(l); });
+  if(cur.length) blocks.push(cur);
+  var blockish = blocks.length >= 2 && blocks.filter(function(b){ return b.length >= 2 && !/[:\t]/.test(b[0]); }).length >= blocks.length * 0.7;
+  if(blockish && colonish < nonEmpty.length * 0.3){
+    return finish(blocks.map(function(b){
+      var ds = [];
+      b.slice(1).forEach(function(l){ ds = ds.concat(splitNames(l)); });
+      return {name: b[0].replace(/[:\-–]\s*$/, ''), dancers: ds};
+    }), 'blocks', warnings);
+  }
+
+  // Shape A
+  var out = [];
+  nonEmpty.forEach(function(l, i){
+    // ":" wins over a tab, a tab over " - " (so "Senior Contemporary - Glass: Ava, Mia" keeps its full name)
+    var m = l.match(/^([^:]{1,80}?)\s*:\s*(.*)$/) || l.match(/^([^\t]{1,80}?)\s*\t\s*(.*)$/) || l.match(/^(.{1,80}?)\s+[-–—]\s+(.*)$/);
+    if(!m){ warnings.push('Line ' + (i + 1) + ' has no ":" after the routine name, so it was read as a routine with no dancers: "' + l.slice(0, 40) + '"'); out.push({name: l, dancers: []}); return; }
+    out.push({name: m[1], dancers: splitNames(m[2])});
+  });
+  return finish(out, 'lines', warnings);
+}
+
+function finish(list, shape, warnings){
+  var seen = {}, routines = [];
+  list.forEach(function(r){
+    var name = clean(r.name).replace(/^#?\d+[.)]\s+/, '') || 'Routine';
+    var k = nameKey(name), n = 2;
+    var base = name;
+    while(seen[k]){ name = base + ' (' + n++ + ')'; k = nameKey(name); }
+    seen[k] = 1;
+    var ds = [], dk = {};
+    r.dancers.forEach(function(d){ var x = nameKey(d); if(x && !dk[x]){ dk[x] = 1; ds.push(clean(d)); } });
+    routines.push({name: name, dancers: ds});
+  });
+  // names that are probably the same person written two ways ("Ava M" / "Ava Martinez") -> warn, never merge silently
+  var all = {};
+  routines.forEach(function(r){ r.dancers.forEach(function(d){ all[nameKey(d)] = d; }); });
+  var keys = Object.keys(all), firstOf = {};
+  keys.forEach(function(k){ var f = k.split(' ')[0]; (firstOf[f] = firstOf[f] || []).push(k); });
+  Object.keys(firstOf).forEach(function(f){
+    var g = firstOf[f];
+    if(g.length < 2) return;
+    for(var i = 0; i < g.length; i++) for(var j = i + 1; j < g.length; j++){
+      var a = g[i].split(' '), b = g[j].split(' ');
+      if(a.length === 2 && b.length === 2 && a[1] && b[1] && (a[1].indexOf(b[1]) === 0 || b[1].indexOf(a[1]) === 0) && a[1] !== b[1])
+        warnings.push('"' + all[g[i]] + '" and "' + all[g[j]] + '" might be the same dancer. If so, write the name the same way everywhere.');
+      else if((a.length === 1) !== (b.length === 1) && warnings.length < 40)
+        warnings.push('"' + all[g[i]] + '" and "' + all[g[j]] + '" might be the same dancer. If so, write the name the same way everywhere.');
+    }
+  });
+  return {routines: routines, shape: shape, warnings: warnings.slice(0, 40)};
+}
+
+/* ---------- scoring ----------
+   P = problem: {n, dancers: [[routine index...] per dancer], noChange: [bool per routine], act: [0|1|2 per routine],
+                 pin: [position or -1 per routine], gap: minimum routines between two of one dancer's numbers,
+                 act1: routines in act 1 (0 = no intermission)}
+   order[pos] = routine index. The intermission counts as plenty of time: pairs across it never conflict. */
+function between(pa, pb, act1){
+  var lo = Math.min(pa, pb), hi = Math.max(pa, pb);
+  if(act1 > 0 && lo < act1 && hi >= act1) return Infinity;
+  return hi - lo - 1;
+}
+function dancerCost(P, pos, d, out){
+  var rs = P.dancers[d], ps = [];
+  for(var i = 0; i < rs.length; i++) if(!P.noChange[rs[i]]) ps.push(pos[rs[i]]);
+  if(ps.length < 2) return 0;
+  ps.sort(function(a, b){ return a - b; });
+  var c = 0;
+  for(var j = 1; j < ps.length; j++){
+    var bt = between(ps[j - 1], ps[j], P.act1);
+    if(bt < P.gap){
+      var def = P.gap - bt;
+      c += 1000 + def * def * 40 + (bt === 0 ? 400 : 0);
+      if(out) out.push({d: d, a: ps[j - 1], b: ps[j], between: bt});
+    }
+  }
+  return c;
+}
+function actCost(P, pos, r){
+  var a = P.act[r];
+  if(!P.act1 || !a) return 0;
+  var in1 = pos[r] < P.act1;
+  return (a === 1 && !in1) || (a === 2 && in1) ? 100000 : 0;
+}
+function styleCost(P, order, p){
+  // a light nudge: the same style twice in a row looks repetitive. Never outweighs a quick change.
+  if(!P.style || p <= 0 || p >= order.length) return 0;
+  var a = P.style[order[p - 1]], b = P.style[order[p]];
+  return a && a === b && !(P.act1 && p === P.act1) ? 3 : 0;
+}
+function totalCost(P, order){
+  var pos = posOf(order), c = 0, d, p, r;
+  for(d = 0; d < P.dancers.length; d++) c += dancerCost(P, pos, d);
+  for(r = 0; r < P.n; r++) c += actCost(P, pos, r);
+  for(p = 1; p < order.length; p++) c += styleCost(P, order, p);
+  return c;
+}
+function posOf(order){ var pos = new Array(order.length); for(var p = 0; p < order.length; p++) pos[order[p]] = p; return pos; }
+
+/* Every remaining quick change in an order: [{d, a, b, between}] with a/b positions, sorted by position. */
+function conflicts(P, order){
+  var pos = posOf(order), out = [];
+  for(var d = 0; d < P.dancers.length; d++) dancerCost(P, pos, d, out);
+  out.sort(function(x, y){ return x.a - y.a || x.b - y.b || x.d - y.d; });
+  return out;
+}
+function actProblems(P, order){
+  var pos = posOf(order), out = [];
+  for(var r = 0; r < P.n; r++) if(actCost(P, pos, r)) out.push(r);
+  return out;
+}
+
+/* Who can't possibly get the gap: a dancer in k counted routines needs k + (k-1)*gap slots in one act.
+   With an intermission the two acts each hold their own run, so the bound is checked against the whole show + the free reset. */
+function impossible(P){
+  var out = [];
+  for(var d = 0; d < P.dancers.length; d++){
+    var k = P.dancers[d].filter(function(r){ return !P.noChange[r]; }).length;
+    if(k < 2) continue;
+    var have = P.act1 > 0 ? fitIn(P.act1, P.gap) + fitIn(P.n - P.act1, P.gap) : fitIn(P.n, P.gap);
+    if(k > have) out.push({d: d, k: k, need: k + (k - 1) * P.gap, have: have});
+  }
+  return out;
+}
+function fitIn(slots, gap){ return slots <= 0 ? 0 : Math.floor((slots - 1) / (gap + 1)) + 1; }
+
+/* Seeded random so "Try another order" is repeatable in tests. */
+function rng(seed){ var s = (seed >>> 0) || 1; return function(){ s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+
+/* Search: simulated annealing over the unpinned routines (swaps only, pins never move).
+   start = optional order to improve from (keeps the user's arrangement where it is already fine). */
+function solve(P, opts){
+  opts = opts || {};
+  var R = rng(opts.seed || 1), n = P.n;
+  var order = new Array(n), free = [], freeSlots = [], used = {}, r, p, d, i;
+  for(p = 0; p < n; p++) order[p] = -1;
+  for(r = 0; r < n; r++) if(P.pin[r] >= 0 && P.pin[r] < n && order[P.pin[r]] < 0){ order[P.pin[r]] = r; used[r] = 1; }
+  for(r = 0; r < n; r++) if(!used[r]) free.push(r);
+  for(p = 0; p < n; p++) if(order[p] < 0) freeSlots.push(p);
+  if(opts.start && opts.start.length === n){
+    var rank = {}; opts.start.forEach(function(x, i){ rank[x] = i; });
+    free.sort(function(a, b){ return rank[a] - rank[b]; });
+  } else {
+    for(i = free.length - 1; i > 0; i--){ var j = Math.floor(R() * (i + 1)), t = free[i]; free[i] = free[j]; free[j] = t; }
+  }
+  freeSlots.forEach(function(s, i){ order[s] = free[i]; });
+  if(freeSlots.length < 2) return order.slice();
+
+  // fast path: counted routines per dancer, dancers per routine, a reusable buffer
+  var DR = P.dancers.map(function(rs){ return rs.filter(function(x){ return !P.noChange[x]; }); });
+  var byR = []; for(r = 0; r < n; r++) byR.push([]);
+  DR.forEach(function(rs, d){ if(rs.length > 1) rs.forEach(function(x){ byR[x].push(d); }); });
+  var pos = new Int32Array(n); for(p = 0; p < n; p++) pos[order[p]] = p;
+  var buf = new Int32Array(n + 1), stamp = new Int32Array(DR.length), tick = 0;
+  var gap = P.gap, act1 = P.act1;
+  function dc(d){
+    var rs = DR[d], m = rs.length, k, q, x;
+    for(k = 0; k < m; k++){ x = pos[rs[k]]; q = k; while(q > 0 && buf[q - 1] > x){ buf[q] = buf[q - 1]; q--; } buf[q] = x; }
+    var c = 0;
+    for(k = 1; k < m; k++){
+      var lo = buf[k - 1], hi = buf[k];
+      if(act1 > 0 && lo < act1 && hi >= act1) continue;
+      var bt = hi - lo - 1;
+      if(bt < gap){ var def = gap - bt; c += 1000 + def * def * 40 + (bt === 0 ? 400 : 0); }
+    }
+    return c;
+  }
+  function ac(x){
+    var a = P.act[x];
+    if(!act1 || !a) return 0;
+    var in1 = pos[x] < act1;
+    return (a === 1 && !in1) || (a === 2 && in1) ? 100000 : 0;
+  }
+  function sc(q){ return q > 0 && q < n ? styleCost(P, order, q) : 0; }
+  function localCost(ra, rb, sa, sb){
+    var c = 0, k, L, d;
+    tick++;
+    L = byR[ra]; for(k = 0; k < L.length; k++){ d = L[k]; if(stamp[d] !== tick){ stamp[d] = tick; c += dc(d); } }
+    L = byR[rb]; for(k = 0; k < L.length; k++){ d = L[k]; if(stamp[d] !== tick){ stamp[d] = tick; c += dc(d); } }
+    c += ac(ra) + ac(rb);
+    if(P.style){
+      c += sc(sa) + sc(sa + 1);
+      if(sb !== sa && sb !== sa + 1) c += sc(sb);
+      if(sb + 1 !== sa && sb + 1 !== sa + 1) c += sc(sb + 1);
+    }
+    return c;
+  }
+  var cost = totalCost(P, order), best = order.slice(), bestCost = cost;
+  var nf = freeSlots.length;
+  var iters = opts.iters || Math.min(1000000, 20000 * nf + 20000);
+  var T0 = opts.T0 || (opts.start ? 300 : 3000), T1 = opts.T1 || 50;   // tuned 11-24 on tight planted shows (tests/test_core.js)
+  // full cost of every dancer, used by insertion moves (which shift many routines at once)
+  function fullCost(){
+    var c = 0, k;
+    for(k = 0; k < DR.length; k++) if(DR[k].length > 1) c += dc(k);
+    for(k = 0; k < n; k++) c += ac(k);
+    if(P.style) for(k = 1; k < n; k++) c += styleCost(P, order, k);
+    return c;
+  }
+  var save = new Array(n), INS = opts.ins == null ? 0.15 : opts.ins;
+  var t0 = Date.now(), ms = opts.ms || 0, frac = 0, onTick = opts.onTick;
+  for(var it = 0; it < iters && bestCost > 0; it++){
+    if((it & 1023) === 0){
+      // with a time budget the cooling follows the clock, so a slow phone still finishes cold
+      frac = it / iters;
+      if(ms){ var el = (Date.now() - t0) / ms; if(el > frac) frac = el; if(frac >= 1) break; }
+      if(onTick) onTick(frac, bestCost);
+    }
+    var T = T0 * Math.pow(T1 / T0, frac), delta;
+    if(R() < INS){
+      // insertion: take the routine in free slot i out and put it at free slot j; the free routines between shift by one
+      var fi = (R() * nf) | 0, fj = (R() * nf) | 0;
+      if(fi === fj) continue;
+      for(i = 0; i < n; i++) save[i] = order[i];
+      var mv = order[freeSlots[fi]], step = fi < fj ? 1 : -1;
+      for(var q = fi; q !== fj; q += step) order[freeSlots[q]] = order[freeSlots[q + step]];
+      order[freeSlots[fj]] = mv;
+      for(i = 0; i < n; i++) pos[order[i]] = i;
+      delta = fullCost() - cost;
+      if(delta <= 0 || R() < Math.exp(-delta / T)){
+        cost += delta;
+        if(cost < bestCost){ bestCost = cost; best = order.slice(); }
+      } else { for(i = 0; i < n; i++){ order[i] = save[i]; pos[order[i]] = i; } }
+      continue;
+    }
+    var sa = freeSlots[(R() * nf) | 0], sb = freeSlots[(R() * nf) | 0];
+    if(sa === sb) continue;
+    var ra = order[sa], rb = order[sb];
+    var before = localCost(ra, rb, sa, sb);
+    order[sa] = rb; order[sb] = ra; pos[ra] = sb; pos[rb] = sa;
+    delta = localCost(ra, rb, sa, sb) - before;
+    if(delta <= 0 || R() < Math.exp(-delta / T)){
+      cost += delta;
+      if(cost < bestCost){ bestCost = cost; best = order.slice(); }
+    } else { order[sa] = ra; order[sb] = rb; pos[ra] = sa; pos[rb] = sb; }
+  }
+  return best;
+}
+
+/* Several independent runs; keep the one with the fewest quick changes (then the lowest cost). */
+function bestOf(P, runs, seed, start){
+  var best = null, bc = Infinity;
+  for(var i = 0; i < runs; i++){
+    var o = solve(P, {seed: (seed || 1) * 7919 + i * 104729, start: i === 0 ? start : null});
+    var c = totalCost(P, o);
+    if(c < bc){ bc = c; best = o; }
+    if(bc === 0) break;
+  }
+  return best;
+}
+
+return {clean: clean, nameKey: nameKey, parseRoster: parseRoster, between: between, totalCost: totalCost, conflicts: conflicts,
+        actProblems: actProblems, impossible: impossible, solve: solve, bestOf: bestOf, posOf: posOf, rng: rng};
+})();
+if(typeof module !== 'undefined') module.exports = RO;
+/*CORE-END*/
+</script>
+<script>
+(function(){
+'use strict';
+var $ = function(id){ return document.getElementById(id); };
+var SITE = 'https://samsbench.com/recital-order/';
+var APP_KEY = 'recital-order';
+var VERIFY_URL = 'https://app-bizz-api.whop.site/api/verify';
+var CHECKOUT_HOME = 'https://whop.com/checkout/ch_hSKpRykRGEUh9jD/';
+var CHECKOUT_PLAN = 'https://whop.com/checkout/plan_WK58kS06PCWay';
+var PRICE = '$29';
+var GIFT = [];
+var KEY = 'ro.v1', PROKEY = 'ro.pro', BUDGET_MS = 8000;
+
+/* ---------- measurement (GoatCounter). Copied from Handbell Chart / Family Formals: ?via follows the visitor down the funnel. ---------- */
+var GC_CODE = 'recitalorder';
+var SRC = (function(){ try{
+  var q = new URLSearchParams(location.search), v = (q.get('via') || '').replace(/[^a-z0-9-]/g, '').slice(0, 20) || (q.get('a') ? 'aff' : '');
+  if(v){ sessionStorage.setItem('ro.src', v); return v; }
+  return sessionStorage.getItem('ro.src') || '';
+}catch(e){ return ''; } })();
+var FUNNEL_EV = {'tool-start':1, 'roster-read':1, 'order-built':1, 'order-used':1, 'order-moved':1, 'print-order':1, 'print-quick':1, 'print-cards':1,
+                 'pro-view':1, 'pro-limit':1, 'buy-click':1, 'pro-unlocked':1, 'pro-gift':1};
+var ONCE = {}, QUEUE = [], SENDING = false, GC_READY = 0;
+/* One hit every 700 ms; the first waits 1.5 s for count.js's own pageview. GoatCounter drops more than ~4/s per visitor (bizz-handbell 11-24). */
+function track(name){
+  try{
+    if(SRC && FUNNEL_EV[name]) QUEUE.push(name + '.' + SRC);
+    QUEUE.push(name); drain();
+  }catch(e){}
+}
+function drain(){
+  if(SENDING || !QUEUE.length || !GC_CODE || GC_CODE.indexOf('*') >= 0) return;
+  if(!(window.goatcounter && window.goatcounter.count)){ SENDING = true; setTimeout(function(){ SENDING = false; drain(); }, 400); return; }
+  if(!GC_READY){ GC_READY = Date.now(); }
+  if(Date.now() - GC_READY < 1500){ SENDING = true; setTimeout(function(){ SENDING = false; drain(); }, 1500 - (Date.now() - GC_READY)); return; }
+  var n = QUEUE.shift(); SENDING = true;
+  try{ window.goatcounter.count({path: n, title: n, event: true}); }catch(e){}
+  setTimeout(function(){ SENDING = false; drain(); }, 700);
+}
+function trackOnce(name){ if(ONCE[name]) return; ONCE[name] = 1; track(name); }
+
+function lsGet(k, d){ try{ var t = localStorage.getItem(k); return t ? JSON.parse(t) : d; }catch(e){ return d; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+var toastT = 0;
+function say(t){ var e = $('toast'); e.textContent = t; e.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ e.hidden = true; }, 3200); }
+
+/* ---------- state ----------
+   A show: {name, text (the pasted list), routines:[{name, dancers:[display], act:0|1|2, lock:bool, noChange:bool}],
+            gap, act1 (routines before the intermission, 0 = none, -1 = not chosen yet), order:[routine index] or null}
+   lock = keep at its current spot in the order. */
+var PRO = lsGet(PROKEY, null);
+function isPro(){ return !!(PRO && (PRO.email || PRO.gift)); }
+function newShow(name){ return {name: name || 'My recital', text: '', routines: [], gap: 3, act1: -1, order: null}; }
+var S = lsGet(KEY, null);
+if(!S || !S.shows || !S.shows.length) S = {v: 1, cur: 0, shows: [newShow()]};
+S.shows = S.shows.filter(function(x){ return x && Array.isArray(x.routines); });
+if(!S.shows.length) S.shows = [newShow()];
+S.shows.forEach(sanitize);
+if(!(S.cur >= 0 && S.cur < S.shows.length)) S.cur = 0;
+function sanitize(sh){
+  sh.gap = Math.max(1, Math.min(10, parseInt(sh.gap, 10) || 3));
+  sh.routines = sh.routines.filter(function(r){ return r && typeof r.name === 'string'; }).map(function(r){
+    return {name: r.name, dancers: Array.isArray(r.dancers) ? r.dancers.filter(function(d){ return typeof d === 'string' && d; }) : [],
+            act: r.act === 1 || r.act === 2 ? r.act : 0, lock: !!r.lock, noChange: !!r.noChange};
+  });
+  var n = sh.routines.length;
+  if(!Array.isArray(sh.order) || sh.order.length !== n || new Set(sh.order).size !== n || sh.order.some(function(x){ return !(x >= 0 && x < n); })) sh.order = null;
+  sh.act1 = parseInt(sh.act1, 10); if(!(sh.act1 >= -1 && sh.act1 < n)) sh.act1 = -1;
+  if(typeof sh.text !== 'string') sh.text = '';
+  if(typeof sh.name !== 'string' || !sh.name) sh.name = 'My recital';
+}
+function show(){ return S.shows[S.cur]; }
+function save(){ if(!lsSet(KEY, S)) say('This browser won\'t save. Use "Save a backup file".'); }
+
+/* The problem the core solves, built from the current show */
+function problem(sh){
+  var keys = {}, dancers = [], names = [];
+  sh.routines.forEach(function(r, ri){
+    r.dancers.forEach(function(d){
+      var k = RO.nameKey(d);
+      if(!k) return;
+      if(keys[k] == null){ keys[k] = dancers.length; dancers.push([]); names.push(d); }
+      var arr = dancers[keys[k]]; if(arr.indexOf(ri) < 0) arr.push(ri);
+    });
+  });
+  var n = sh.routines.length, pin = [];
+  for(var i = 0; i < n; i++) pin.push(-1);
+  if(sh.order) sh.order.forEach(function(ri, p){ if(sh.routines[ri].lock) pin[ri] = p; });
+  return {n: n, dancers: dancers, names: names, noChange: sh.routines.map(function(r){ return r.noChange; }),
+          act: sh.routines.map(function(r){ return r.act; }), pin: pin, gap: sh.gap, act1: act1Of(sh)};
+}
+function act1Of(sh){ var n = sh.routines.length; return sh.act1 === -1 ? (n >= 16 ? Math.ceil(n / 2) : 0) : sh.act1; }
+
+/* ---------- step 1: read the list ---------- */
+function readList(fromSample){
+  var sh = show(), text = $('roster').value;
+  var res = RO.parseRoster(text);
+  var out = $('readOut');
+  if(!res.routines.length){ out.innerHTML = '<p class="err">Nothing to read yet. Paste one routine per line, like "Jazz II: Ava M, Lily R".</p>'; return false; }
+  // keep flags and the current order for routines that are still there (matched by name)
+  var old = {}, oldPos = {};
+  sh.routines.forEach(function(r, i){ old[RO.nameKey(r.name)] = r; });
+  if(sh.order) sh.order.forEach(function(ri, p){ oldPos[RO.nameKey(sh.routines[ri].name)] = p; });
+  var rs = res.routines.map(function(r){
+    var o = old[RO.nameKey(r.name)];
+    return {name: r.name, dancers: r.dancers, act: o ? o.act : 0, lock: o ? o.lock : false, noChange: o ? o.noChange : /\b(bows?|curtain call)\b/i.test(r.name)};
+  });
+  var order = null;
+  if(sh.order){
+    var idx = rs.map(function(r, i){ return i; });
+    idx.sort(function(a, b){
+      var pa = oldPos[RO.nameKey(rs[a].name)], pb = oldPos[RO.nameKey(rs[b].name)];
+      return (pa == null ? 1e6 + a : pa) - (pb == null ? 1e6 + b : pb);
+    });
+    order = idx;
+  }
+  var changed = rs.length !== sh.routines.length;
+  sh.text = text; sh.routines = rs; sh.order = order;
+  if(sh.act1 >= rs.length) sh.act1 = -1;
+  if(changed && sh.act1 !== 0) sh.act1 = -1;
+  save();
+  var P = problem(sh), counts = P.dancers.map(function(a){ return a.length; });
+  var top = counts.map(function(c, i){ return [c, i]; }).sort(function(a, b){ return b[0] - a[0]; }).slice(0, 3);
+  var h = '<p class="sum">' + rs.length + ' routines · ' + P.dancers.length + ' dancers';
+  if(top.length && top[0][0] > 1) h += ' · busiest: ' + top.filter(function(t){ return t[0] > 1; }).map(function(t){ return esc(P.names[t[1]]) + ' (' + t[0] + ')'; }).join(', ');
+  h += '</p>';
+  var empties = rs.filter(function(r){ return !r.dancers.length; }).map(function(r){ return r.name; });
+  var w = res.warnings.slice(0, 8);
+  if(empties.length && empties.length < rs.length) w.push('No dancers listed for: ' + empties.slice(0, 6).join(', ') + (empties.length > 6 ? '…' : '') + '. Fine for bows or a finale.');
+  if(res.shape === 'rows') w.unshift('Read as two columns: dancer and routine.');
+  if(w.length) h += '<ul class="warns">' + w.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+  out.innerHTML = h;
+  trackOnce('tool-start'); track('roster-read');
+  renderAll();
+  return true;
+}
+
+/* ---------- step 3: build (in a worker so the page stays responsive) ---------- */
+var worker = null, running = false;
+function makeWorker(){
+  try{
+    var src = $('coreSrc').textContent + '\n;onmessage=function(e){var d=e.data,last=0;var o=RO.solve(d.P,{seed:d.seed,start:d.start,ms:d.ms,onTick:function(f,c){var t=Date.now();if(t-last>120){last=t;postMessage({tick:f,cost:c});}}});postMessage({done:o});};';
+    return new Worker(URL.createObjectURL(new Blob([src], {type: 'text/javascript'})));
+  }catch(e){ return null; }
+}
+function build(mode){
+  var sh = show();
+  if(!sh.routines.length){ if(!readList()) return; }
+  if(running) return;
+  if(sh.routines.length < 2){ sh.order = sh.routines.map(function(r, i){ return i; }); save(); renderAll(); return; }
+  var P = problem(sh);
+  var start = mode === 'more' && sh.order ? sh.order.slice() : null;
+  var seed = Math.floor(Math.random() * 1e9) + 1;
+  running = true; $('busy').hidden = false; $('busyBar').style.width = '0%'; $('busyTxt').textContent = mode === 'more' ? 'Looking for a better order…' : 'Looking for an order…';
+  ['buildBtn','moreBtn','freshBtn'].forEach(function(id){ $(id).disabled = true; });
+  var before = sh.order ? RO.conflicts(P, sh.order).length : null;
+  function done(o){
+    running = false; $('busy').hidden = true;
+    ['buildBtn','moreBtn','freshBtn'].forEach(function(id){ $(id).disabled = false; });
+    if(worker){ try{ worker.terminate(); }catch(e){} worker = null; }
+    if(!o) return;
+    var after = RO.conflicts(P, o).length;
+    if(mode === 'more' && before != null && RO.totalCost(P, o) >= RO.totalCost(P, sh.order)){ say('No better order found. This one stays.'); renderAll(); return; }
+    sh.order = o; save();
+    track(mode === 'more' ? 'order-more' : 'order-built');
+    if(mode === 'more' && before != null) say(after < before ? 'Found one with ' + (before - after) + ' fewer quick change' + (before - after === 1 ? '' : 's') + '.' : 'Same number of quick changes, but less tight.');
+    renderAll();
+  }
+  worker = makeWorker();
+  if(worker){
+    worker.onmessage = function(e){
+      if(e.data.tick != null) $('busyBar').style.width = Math.round(e.data.tick * 100) + '%';
+      if(e.data.done) done(e.data.done);
+    };
+    worker.onerror = function(){ worker = null; setTimeout(function(){ done(RO.solve(P, {seed: seed, start: start, ms: 2500})); }, 30); };
+    worker.postMessage({P: P, seed: seed, start: start, ms: BUDGET_MS});
+    $('stopBtn').onclick = function(){ done(null); say('Stopped. The order you had stays.'); };
+  } else {
+    setTimeout(function(){ done(RO.solve(P, {seed: seed, start: start, ms: 2500})); }, 30);
+  }
+}
+
+/* ---------- render ---------- */
+function renderShows(){
+  var box = $('shows');
+  if(S.shows.length < 2 && !isPro()){ box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = '<b>Shows:</b> ' + S.shows.map(function(sh, i){
+    return '<button type="button" class="btn small ghost" data-show="' + i + '" aria-pressed="' + (i === S.cur) + '">' + esc(sh.name) + '</button>';
+  }).join('') + ' <button type="button" class="btn small" id="addShow">+ Another show</button>' +
+  ' <button type="button" class="btn small ghost" id="renameShow">Rename</button>' + (S.shows.length > 1 ? ' <button type="button" class="btn small ghost" id="delShow">Delete this show</button>' : '');
+}
+function renderRules(){
+  var sh = show(), n = sh.routines.length, a = act1Of(sh);
+  $('gapOut').textContent = sh.gap;
+  var opts = '<option value="0"' + (a === 0 ? ' selected' : '') + '>No intermission</option>';
+  for(var k = 1; k < n; k++) opts += '<option value="' + k + '"' + (a === k ? ' selected' : '') + '>After number ' + k + '</option>';
+  if(!n) opts += '<option value="-1" selected>Halfway (after you read the list)</option>';
+  $('interSel').innerHTML = opts;
+}
+var FIND = '';
+function renderOrder(){
+  var sh = show(), box = $('order');
+  var has = !!sh.order && sh.routines.length > 0;
+  $('oTools').hidden = !has; $('findRow').hidden = !has; $('dragHint').hidden = !has; $('outsWrap').hidden = !has;
+  $('oTitle').textContent = S.shows.length > 1 ? sh.name : 'Running order';
+  if(!has){
+    $('stamp').innerHTML = '';
+    box.innerHTML = sh.routines.length ? '<div class="empty"><b>' + sh.routines.length + ' routines read.</b>Set your rules, then press Build.</div>' :
+      '<div class="empty"><b>Your running order shows up here.</b>Paste your routines on the left (or try the sample), then press Build.</div>';
+    $('found').innerHTML = '';
+    return;
+  }
+  var P = problem(sh), cs = RO.conflicts(P, sh.order), a1 = P.act1, acts = RO.actProblems(P, sh.order);
+  var bad = cs.length + acts.length;
+  $('stamp').innerHTML = bad ? '<span class="stamp bad">' + cs.length + ' quick change' + (cs.length === 1 ? '' : 's') + (acts.length ? ' · ' + acts.length + ' in the wrong act' : '') + '</span>' :
+    '<span class="stamp good">No quick changes</span>';
+  var pos = RO.posOf(sh.order);
+  var notes = {};
+  function add(list, cls){
+    var g = {};
+    list.forEach(function(c){ var k = c.a + '>' + c.b; (g[k] = g[k] || {a: c.a, b: c.b, bt: c.between, ds: []}).ds.push(P.names[c.d]); });
+    Object.keys(g).forEach(function(k){ var x = g[k]; (notes[x.a] = notes[x.a] || []).push({cls: cls, x: x}); });
+  }
+  add(cs, 'q');
+  var findK = RO.nameKey(FIND), findD = -1;
+  if(findK) P.names.forEach(function(nm, i){ if(findD < 0 && RO.nameKey(nm) === findK) findD = i; });
+  if(findK && findD < 0) P.names.forEach(function(nm, i){ if(findD < 0 && RO.nameKey(nm).indexOf(findK) === 0) findD = i; });
+  var mine = {};
+  if(findD >= 0) P.dancers[findD].forEach(function(r){ mine[pos[r]] = 1; });
+  var h = '<ol class="ro" id="roList">';
+  sh.order.forEach(function(ri, p){
+    if(a1 && p === a1) h += '<li class="inter" aria-label="Intermission">Intermission</li>';
+    var r = sh.routines[ri], ns = notes[p] || [], isBad = cs.some(function(c){ return c.a === p || c.b === p; }) || acts.indexOf(ri) >= 0;
+    var tags = '';
+    if(r.lock) tags += '<span class="tag lock">Locked</span>';
+    if(r.act) tags += '<span class="tag">Act ' + r.act + ' only</span>';
+    if(r.noChange) tags += '<span class="tag">No change</span>';
+    h += '<li class="ri' + (isBad ? ' bad' : '') + (mine[p] ? ' hit' : '') + '" data-p="' + p + '">' +
+      '<span class="n">' + (p + 1) + '</span>' +
+      '<button type="button" class="h" aria-label="Move ' + esc(r.name) + '" data-grip="' + p + '"><svg viewBox="0 0 16 22" aria-hidden="true"><g fill="currentColor"><circle cx="4" cy="4" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="4" cy="11" r="2"/><circle cx="12" cy="11" r="2"/><circle cx="4" cy="18" r="2"/><circle cx="12" cy="18" r="2"/></g></svg></button>' +
+      '<span class="t"><b>' + esc(r.name) + '</b><small>' + (r.dancers.length ? r.dancers.length + ' dancer' + (r.dancers.length === 1 ? '' : 's') : 'no dancers listed') + '</small></span>' +
+      '<span class="tags">' + tags + '</span><button type="button" class="menu" aria-label="Options for ' + esc(r.name) + '" data-menu="' + p + '">⋯</button>';
+    if(ns.length || acts.indexOf(ri) >= 0){
+      h += '<span class="qc">';
+      if(acts.indexOf(ri) >= 0) h += '<span class="q">Should be in Act ' + r.act + '.</span>';
+      ns.forEach(function(nt){
+        var x = nt.x, who = x.ds.slice(0, 6).join(', ') + (x.ds.length > 6 ? ' +' + (x.ds.length - 6) : '');
+        var txt = x.bt === 0 ? 'straight into #' + (x.b + 1) + ', no time to change' : 'only ' + x.bt + ' number' + (x.bt === 1 ? '' : 's') + ' before #' + (x.b + 1);
+        if(nt.cls === 'c') txt = x.bt + ' numbers before #' + (x.b + 1) + ' (just enough)';
+        h += '<span class="' + nt.cls + '"><b>' + esc(who) + '</b>: ' + txt + '</span>';
+      });
+      h += '</span>';
+    }
+    h += '</li>';
+  });
+  h += '</ol>';
+  var imp = RO.impossible(P);
+  if(imp.length){
+    h += '<p class="note hint" style="margin-top:10px"><b>Can\'t be done with this rule:</b> ' + imp.slice(0, 5).map(function(x){
+      return esc(P.names[x.d]) + ' is in ' + x.k + ' routines, and ' + (a1 ? 'two acts' : P.n + ' numbers') + ' only fit ' + x.have + ' of them ' + P.gap + ' apart';
+    }).join('; ') + '. Lower the rule, mark a routine "no costume change", or plan a helper for them.</p>';
+  }
+  box.innerHTML = h;
+  // dancer finder
+  var f = $('found');
+  if(findD >= 0){
+    var ps = P.dancers[findD].map(function(r){ return pos[r]; }).sort(function(x, y){ return x - y; });
+    f.innerHTML = '<b>' + esc(P.names[findD]) + '</b>: ' + ps.map(function(q){ return '#' + (q + 1) + ' ' + esc(sh.routines[sh.order[q]].name); }).join(' · ');
+    trackOnce('dancer-find');
+  } else f.innerHTML = findK ? 'No dancer called "' + esc(FIND) + '".' : '';
+  $('dancerList').innerHTML = P.names.slice().sort().map(function(nm){ return '<option value="' + esc(nm) + '">'; }).join('');
+}
+function renderAll(){
+  var sh = show();
+  if($('roster').value !== sh.text && document.activeElement !== $('roster')) $('roster').value = sh.text;
+  renderShows(); renderRules(); renderOrder(); renderPro();
+}
+
+/* ---------- moving routines: drag the grip (mouse and touch), or the menu ---------- */
+function moveRoutine(from, to){
+  var sh = show(); if(from === to) return;
+  var ri = sh.order.splice(from, 1)[0];
+  sh.order.splice(to, 0, ri);
+  save(); renderOrder(); trackOnce('order-moved');
+}
+var drag = null;
+document.addEventListener('pointerdown', function(e){
+  var g = e.target.closest && e.target.closest('[data-grip]');
+  if(!g) return;
+  e.preventDefault();
+  var li = g.closest('.ri');
+  drag = {from: +g.getAttribute('data-grip'), li: li, to: +g.getAttribute('data-grip'), line: document.createElement('li'), y: e.clientY, moved: false};
+  drag.line.className = 'drop';
+  li.classList.add('drag');
+  try{ g.setPointerCapture(e.pointerId); }catch(x){}
+});
+document.addEventListener('pointermove', function(e){
+  if(!drag) return;
+  if(Math.abs(e.clientY - drag.y) > 4) drag.moved = true;
+  if(!drag.moved) return;
+  var items = Array.prototype.slice.call(document.querySelectorAll('#roList .ri')), to = items.length;
+  for(var i = 0; i < items.length; i++){ var r = items[i].getBoundingClientRect(); if(e.clientY < r.top + r.height / 2){ to = i; break; } }
+  var target = to < items.length ? items[to] : null;
+  if(target) target.parentNode.insertBefore(drag.line, target); else items[items.length - 1].parentNode.appendChild(drag.line);
+  drag.to = to > drag.from ? to - 1 : to;
+  // keep the list scrolling while dragging near the window edge
+  if(e.clientY < 60) window.scrollBy(0, -12); else if(e.clientY > window.innerHeight - 60) window.scrollBy(0, 12);
+});
+function endDrag(){
+  if(!drag) return;
+  var d = drag; drag = null;
+  if(d.line.parentNode) d.line.parentNode.removeChild(d.line);
+  d.li.classList.remove('drag');
+  if(d.moved && d.to !== d.from) moveRoutine(d.from, d.to);
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+
+function closePop(){ var p = document.querySelector('.pop'); if(p) p.parentNode.removeChild(p); }
+function openMenu(p){
+  closePop();
+  var sh = show(), ri = sh.order[p], r = sh.routines[ri], li = document.querySelector('.ri[data-p="' + p + '"]');
+  var a1 = act1Of(sh), n = sh.routines.length;
+  var d = document.createElement('div');
+  d.className = 'pop'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Options for ' + r.name);
+  d.innerHTML = '<b>' + esc(r.name) + '</b>' +
+    '<label><input type="checkbox" id="pLock"' + (r.lock ? ' checked' : '') + '> Lock at number ' + (p + 1) + '</label>' +
+    '<label><input type="checkbox" id="pNo"' + (r.noChange ? ' checked' : '') + '> No costume change needed (bows, finale)</label>' +
+    (a1 ? '<label>Act <select id="pAct"><option value="0">Either</option><option value="1"' + (r.act === 1 ? ' selected' : '') + '>Act 1 only</option><option value="2"' + (r.act === 2 ? ' selected' : '') + '>Act 2 only</option></select></label>' : '') +
+    '<div class="row"><label for="pTo">Move to number</label><input type="text" inputmode="numeric" id="pTo" size="3" value="' + (p + 1) + '"><button type="button" class="btn small" id="pGo">Move</button></div>' +
+    '<div class="row"><button type="button" class="btn small ghost" id="pUp"' + (p === 0 ? ' disabled' : '') + '>Up one</button><button type="button" class="btn small ghost" id="pDown"' + (p === n - 1 ? ' disabled' : '') + '>Down one</button><button type="button" class="btn small ghost" id="pClose">Done</button></div>';
+  li.appendChild(d);
+  $('pLock').onchange = function(){ r.lock = this.checked; save(); track('lock'); };
+  $('pNo').onchange = function(){ r.noChange = this.checked; save(); track('nochange'); };
+  if($('pAct')) $('pAct').onchange = function(){ r.act = +this.value; save(); track('act-pref'); };
+  $('pGo').onclick = function(){ var t = parseInt($('pTo').value, 10); if(t >= 1 && t <= n){ closePop(); moveRoutine(p, t - 1); } else say('Pick a number from 1 to ' + n + '.'); };
+  $('pTo').onkeydown = function(e){ if(e.key === 'Enter') $('pGo').click(); };
+  $('pUp').onclick = function(){ closePop(); moveRoutine(p, p - 1); };
+  $('pDown').onclick = function(){ closePop(); moveRoutine(p, p + 1); };
+  $('pClose').onclick = function(){ closePop(); renderOrder(); };
+  $('pLock').focus();
+}
+document.addEventListener('click', function(e){
+  var m = e.target.closest && e.target.closest('[data-menu]');
+  if(m){ openMenu(+m.getAttribute('data-menu')); return; }
+  var pop = document.querySelector('.pop');
+  if(pop && !pop.contains(e.target)){ closePop(); renderOrder(); }
+  var sb = e.target.closest && e.target.closest('[data-show]');
+  if(sb){ S.cur = +sb.getAttribute('data-show'); save(); FIND = ''; $('findIn').value = ''; $('readOut').innerHTML = ''; $('roster').value = show().text; renderAll(); }
+  if(e.target.id === 'addShow'){
+    if(!isPro()){ proGate('More than one show'); return; }
+    var nm = prompt('Name of the new show', 'Show ' + (S.shows.length + 1)); if(nm === null) return;
+    S.shows.push(newShow(nm.trim() || 'Show ' + (S.shows.length + 1))); S.cur = S.shows.length - 1; save(); $('roster').value = ''; $('readOut').innerHTML = ''; track('show-new'); renderAll();
+  }
+  if(e.target.id === 'renameShow'){ var t = prompt('Show name', show().name); if(t && t.trim()){ show().name = t.trim(); save(); renderAll(); } }
+  if(e.target.id === 'delShow' && S.shows.length > 1 && confirm('Delete "' + show().name + '"? Its list and order are removed from this browser.')){ S.shows.splice(S.cur, 1); S.cur = 0; save(); $('roster').value = show().text; $('readOut').innerHTML = ''; renderAll(); }
+});
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && document.querySelector('.pop')){ closePop(); renderOrder(); } });
+
+/* ---------- outputs ---------- */
+function today(){ try{ return new Date().toLocaleDateString(undefined, {year: 'numeric', month: 'long', day: 'numeric'}); }catch(e){ return ''; } }
+function foot(){ return '<p class="foot">Printed ' + esc(today()) + ' · Made with Recital Order, free at samsbench.com/recital-order</p>'; }
+function doPrint(html, ev){
+  $('printArea').innerHTML = '<div class="pa">' + html + '</div>';
+  track(ev); trackOnce('order-used');
+  setTimeout(function(){ window.print(); }, 60);
+}
+function orderText(){
+  var sh = show(), a1 = act1Of(sh), t = sh.name + ': running order\n\n';
+  sh.order.forEach(function(ri, p){ if(a1 && p === a1) t += '\n--- Intermission ---\n\n'; t += (p + 1) + '. ' + sh.routines[ri].name + '\n'; });
+  return t + '\nMade with Recital Order: ' + SITE + '?via=text\n';
+}
+function printOrder(){
+  var sh = show(), P = problem(sh), cs = RO.conflicts(P, sh.order), a1 = P.act1, bad = {};
+  cs.forEach(function(c){ bad[c.b] = (bad[c.b] || []).concat(P.names[c.d]); });
+  var h = '<h1>' + esc(sh.name) + '</h1><p class="sub">Running order · ' + sh.routines.length + ' routines · at least ' + sh.gap + ' numbers between a dancer\'s routines</p><table><tr><th>#</th><th>Routine</th><th>Dancers</th></tr>';
+  sh.order.forEach(function(ri, p){
+    if(a1 && p === a1) h += '<tr class="ix"><td colspan="3">Intermission</td></tr>';
+    var r = sh.routines[ri];
+    h += '<tr><td class="n">' + (p + 1) + '</td><td><b>' + esc(r.name) + '</b>' + (bad[p] ? '<br><span class="warnq">Quick change: ' + esc(bad[p].join(', ')) + '</span>' : '') + '</td><td>' + r.dancers.length + '</td></tr>';
+  });
+  doPrint(h + '</table>' + foot(), 'print-order');
+}
+function quickList(){
+  var sh = show(), P = problem(sh), pos = RO.posOf(sh.order), a1 = P.act1, out = [];
+  P.dancers.forEach(function(rs, d){
+    var ps = rs.filter(function(r){ return !P.noChange[r]; }).map(function(r){ return pos[r]; }).sort(function(x, y){ return x - y; });
+    for(var j = 1; j < ps.length; j++){ var bt = RO.between(ps[j - 1], ps[j], a1); if(bt <= P.gap) out.push({d: d, a: ps[j - 1], b: ps[j], bt: bt}); }
+  });
+  out.sort(function(x, y){ return x.a - y.a || x.bt - y.bt || (P.names[x.d] < P.names[y.d] ? -1 : 1); });
+  return {P: P, list: out};
+}
+function printQuick(){
+  if(!isPro()){ proGate('The backstage quick-change list'); return; }
+  var sh = show(), q = quickList(), P = q.P;
+  var h = '<h1>' + esc(sh.name) + '</h1><p class="sub">Backstage quick changes · rule: ' + sh.gap + ' numbers · <b>bold</b> = fewer than the rule</p>';
+  if(!q.list.length) h += '<p>No tight changes in this order.</p>';
+  else {
+    h += '<table><tr><th>After #</th><th>Dancer</th><th>Out of</th><th>Into</th><th>Numbers to change</th></tr>';
+    q.list.forEach(function(x){
+      var hard = x.bt < P.gap, b = function(s){ return hard ? '<b>' + s + '</b>' : s; };
+      h += '<tr><td class="n">' + (x.a + 1) + '</td><td>' + b(esc(P.names[x.d])) + '</td><td>#' + (x.a + 1) + ' ' + esc(sh.routines[sh.order[x.a]].name) + '</td><td>#' + (x.b + 1) + ' ' + esc(sh.routines[sh.order[x.b]].name) + '</td><td>' + b(x.bt === 0 ? 'none (back to back)' : x.bt) + '</td></tr>';
+    });
+    h += '</table>';
+  }
+  doPrint(h + foot(), 'print-quick');
+}
+function dancerRows(){
+  var sh = show(), P = problem(sh), pos = RO.posOf(sh.order);
+  return P.names.map(function(nm, d){
+    return {name: nm, items: P.dancers[d].map(function(r){ return pos[r]; }).sort(function(x, y){ return x - y; }).map(function(q){ return {n: q + 1, name: sh.routines[sh.order[q]].name}; })};
+  }).sort(function(a, b){ return a.name.localeCompare(b.name); });
+}
+function printCards(){
+  if(!isPro()){ proGate('Dancer cards'); return; }
+  var sh = show();
+  var h = '<h1>' + esc(sh.name) + '</h1><p class="sub">Each dancer\'s numbers' + (act1Of(sh) ? ' · intermission after #' + act1Of(sh) : '') + '</p><div class="cards">';
+  dancerRows().forEach(function(x){ h += '<div class="card"><h3>' + esc(x.name) + '</h3><ol>' + x.items.map(function(it){ return '<li value="' + it.n + '">' + esc(it.name) + '</li>'; }).join('') + '</ol></div>'; });
+  doPrint(h + '</div>' + foot(), 'print-cards');
+}
+function cardsText(){
+  var sh = show(), a1 = act1Of(sh);
+  return sh.name + ': each dancer\'s numbers' + (a1 ? ' (intermission after #' + a1 + ')' : '') + '\n\n' + dancerRows().map(function(x){
+    return x.name + ': ' + x.items.map(function(it){ return '#' + it.n + ' ' + it.name; }).join(', ');
+  }).join('\n') + '\n';
+}
+function csv(){
+  if(!isPro()){ proGate('CSV export'); return; }
+  var sh = show(), a1 = act1Of(sh), q = function(s){ s = String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  var rows = [['Number', 'Act', 'Routine', 'Dancer']];
+  sh.order.forEach(function(ri, p){ var r = sh.routines[ri]; (r.dancers.length ? r.dancers : ['']).forEach(function(d){ rows.push([p + 1, a1 ? (p < a1 ? 1 : 2) : 1, r.name, d]); }); });
+  download((sh.name || 'recital') + ' running order.csv', rows.map(function(r){ return r.map(q).join(','); }).join('\r\n'), 'text/csv');
+  track('csv'); trackOnce('order-used');
+}
+function download(name, text, type){
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type: type})); a.download = name.replace(/[\\/:*?"<>|]+/g, '-');
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 500);
+}
+function copy(text, ev){
+  function ok(){ say('Copied.'); track(ev); trackOnce('order-used'); }
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, function(){ fallback(); });
+  else fallback();
+  function fallback(){ var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try{ document.execCommand('copy'); ok(); }catch(e){ say('Couldn\'t copy. Select the text and copy by hand.'); } t.parentNode.removeChild(t); }
+}
+
+/* ---------- pro ---------- */
+function buyUrl(){
+  var a = ''; try{ a = new URLSearchParams(location.search).get('a') || localStorage.getItem('ro.aff') || ''; a = a.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40); if(a) localStorage.setItem('ro.aff', a); }catch(e){}
+  return a ? CHECKOUT_PLAN + '?a=' + encodeURIComponent(a) : CHECKOUT_HOME;
+}
+function renderPro(){
+  $('buyLink').href = buyUrl();
+  $('proPrice').textContent = PRICE;
+  if(isPro()){
+    $('proBuy').hidden = true;
+    $('proState').innerHTML = '<p class="okmsg">Pro is on for this browser' + (PRO.email ? ' (' + esc(PRO.email) + ')' : '') + '. Thank you.</p><p>Add shows with "+ Another show" at the top. On another computer, enter the same email or code there.</p>';
+  } else {
+    $('proBuy').hidden = false;
+    $('proState').innerHTML = /[?&]bought=1/.test(location.search) ? '<p class="okmsg">Thanks for buying! Enter the email you paid with to unlock.</p>' : '';
+  }
+}
+function proGate(why){
+  track('pro-limit');
+  say(why + ' is part of Pro (' + PRICE + ' once).');
+  $('proSec').scrollIntoView({behavior: 'smooth'});
+}
+function sha256hex(s){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)).then(function(buf){
+    return Array.prototype.map.call(new Uint8Array(buf), function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+  });
+}
+var unlocking = false;
+function unlock(){
+  var v = $('proKey').value.trim(), msg = $('proMsg');
+  if(unlocking) return;
+  if(!v){ msg.innerHTML = '<span class="err">Type the email you paid with, or your gift code.</span>'; return; }
+  if(v.indexOf('@') < 0){
+    if(!window.crypto || !crypto.subtle){ msg.innerHTML = '<span class="err">This browser can\'t check codes. Try another browser.</span>'; return; }
+    sha256hex(v.toUpperCase().replace(/\s+/g, '')).then(function(hx){
+      if(GIFT.indexOf(hx) >= 0){ PRO = {gift: hx.slice(0, 12)}; lsSet(PROKEY, PRO); track('pro-gift'); track('gift-' + hx.slice(0, 8)); msg.textContent = ''; renderAll(); say('Pro unlocked. Enjoy!'); }
+      else msg.innerHTML = '<span class="err">That code didn\'t match. Check the letter, or use the email you paid with.</span>';
+    });
+    return;
+  }
+  unlocking = true; msg.textContent = 'Checking…';
+  fetch(VERIFY_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({app: APP_KEY, email: v})})
+    .then(function(r){ if(!r.ok) throw new Error('http ' + r.status); return r.json(); })
+    .then(function(j){
+      unlocking = false;
+      if(j && j.ok && j.valid){ PRO = {email: v.toLowerCase()}; lsSet(PROKEY, PRO); track('pro-unlocked'); msg.textContent = ''; renderAll(); say('Pro unlocked. Thank you!'); }
+      else if(j && j.ok){ track('pro-notfound'); msg.innerHTML = '<span class="err">No purchase found for that email. Use the email you typed at checkout. Just paid? Wait a minute and try again.</span>'; }
+      else throw new Error('bad reply');
+    }).catch(function(){ unlocking = false; msg.innerHTML = '<span class="err">Couldn\'t reach the checker. Check your connection and try again.</span>'; });
+}
+
+/* ---------- backup ---------- */
+function backup(){ download('recital-order-backup.json', JSON.stringify(S, null, 1), 'application/json'); track('backup'); }
+function restore(file){
+  var fr = new FileReader();
+  fr.onload = function(){
+    try{
+      var o = JSON.parse(fr.result);
+      if(!o || !Array.isArray(o.shows) || !o.shows.length) throw new Error('no shows');
+      o.shows = o.shows.filter(function(x){ return x && Array.isArray(x.routines); }); if(!o.shows.length) throw new Error('no shows');
+      o.shows.forEach(sanitize);
+      if(!isPro() && o.shows.length > 1){ say('This backup has ' + o.shows.length + ' shows. Opened the first one; more shows need Pro.'); o.shows = o.shows.slice(0, 1); }
+      if(!confirm('Replace what\'s in this browser with the backup?')) return;
+      S = {v: 1, cur: 0, shows: o.shows}; save(); $('roster').value = show().text; $('readOut').innerHTML = ''; renderAll(); say('Backup opened.'); track('restore');
+    }catch(e){ say('That file isn\'t a Recital Order backup.'); }
+  };
+  fr.readAsText(file);
+}
+
+/* ---------- wire up ---------- */
+$('readBtn').onclick = function(){ readList(); };
+$('sampleBtn').onclick = function(){
+  var sh = show();
+  if(sh.routines.length && !confirm('Replace your list with the sample recital?')) return;
+  $('roster').value = SAMPLE; sh.order = null; sh.act1 = -1; sh.routines = []; readList();
+  // the sample's finale is locked last, the way most studios close
+  var fin = sh.routines.length - 1;
+  if(fin >= 0){ sh.routines[fin].noChange = true; sh.routines[fin].lock = true; sh.order = sh.routines.map(function(r, i){ return i; }); }
+  track('sample'); build('fresh');
+};
+$('roster').addEventListener('input', function(){ show().text = this.value; save(); });
+$('gapMinus').onclick = function(){ var sh = show(); if(sh.gap > 1){ sh.gap--; save(); renderAll(); track('gap-change'); } };
+$('gapPlus').onclick = function(){ var sh = show(); if(sh.gap < 10){ sh.gap++; save(); renderAll(); track('gap-change'); } };
+$('interSel').onchange = function(){ var sh = show(); sh.act1 = parseInt(this.value, 10); save(); renderAll(); };
+$('buildBtn').onclick = function(){ var sh = show(); if($('roster').value.trim() && $('roster').value !== (sh._readText || '')){ if(!readList()) return; sh._readText = $('roster').value; } build(sh.order ? 'rebuild' : 'fresh'); };
+$('moreBtn').onclick = function(){ build('more'); };
+$('freshBtn').onclick = function(){ build('fresh'); };
+$('findIn').addEventListener('input', function(){ FIND = this.value; renderOrder(); });
+$('printOrder').onclick = printOrder;
+$('copyOrder').onclick = function(){ copy(orderText(), 'copy-order'); };
+$('printQuick').onclick = printQuick;
+$('printCards').onclick = printCards;
+$('copyCards').onclick = function(){ if(!isPro()){ proGate('Dancer lists'); return; } copy(cardsText(), 'copy-cards'); };
+$('csvBtn').onclick = csv;
+$('backupBtn').onclick = backup;
+$('restoreIn').onchange = function(){ if(this.files[0]) restore(this.files[0]); this.value = ''; };
+$('buyLink').addEventListener('click', function(){ track('buy-click'); });
+$('proGo').onclick = unlock;
+$('proKey').addEventListener('keydown', function(e){ if(e.key === 'Enter') unlock(); });
+
+var SAMPLE = "Junior Jazz Small Group: Zoe C, Leo D, Rosie B, Elena P, Emma H\nSenior Contemporary - Glass: Ivy E, Maya B, Quinn B, Elena P, Josie G, Olivia W\nTap II: Lena S, Kira W, Rosie R, Emma C, Freya C, Mia R, Hannah B, Isla K, Theo S, Nina J, Maya E, Willow L\nTiny Tots Ballet (3-4): Owen E, Nina F, Willow D, Nina C, Paige B, Hannah W, Clara R, Willow K\nKinder Ballet: Harper G, Elena L, Tess S, Piper F\nHip Hop Teens: Sadie R, Lucy C, Chloe T, Olivia F, Stella P, Ella H, Leah W\nLyrical I: Paige L, Rosie R, Stella S, Freya C, Daisy M, Nora T\nHip Hop Kids: Theo W, Piper N, Ella H, Hannah B\nSolo - Elena: Elena P\nKinder Tap: Ella W, Freya H, Amelia N, Stella S\nCompany Hip Hop: Harper M, Lily H, Emma H, Ivy E, Zoe W, Leo D, Rosie B, Maya B, Quinn B, Olivia W, Elena B\nBallet II: Sadie R, Leah F, Nora H, Nora P, Maya E, Daisy H, Clara W\nTrio - Hold On: Emma W, Harper M, Rosie B\nCompany Tap - Sing Sing Sing: Rosie B, Elena P, Olivia W, Leo D, Quinn B, Emma H, Ivy E, Josie G, Lily H\nTiny Tots Tap (3-4): Lucy P, Chloe K, June G, Hazel F\nContemporary Teens: Lena S, Lily K, Hannah B, Jade N, Violet K, Leah W\nBallet I: Daisy C, Paige L, Mia R, Jade N, Eli F, June B\nAcro Kids: Olivia K, Sadie M, Nina J, Nora P, Ava E, Clara W\nJazz I: Leah F, Leah B, Kira W, Ava S, Ava E, Willow L, Nora T, Harper S\nSolo - Emma: Emma H\nTap I: Ella S, Sadie M, Piper F, June D, Lily G\nSolo - Josie: Josie G\nDuet - Ava & Mia: Ivy E, Quinn B\nJazz II: Daisy C, Lily K, Brooke R, Lucy N, June D, Nora H, Quinn N, Theo S, Stella P, Amelia N\nCompany Jazz - Shake It: Emma H, Zoe W, Zoe C, Emma W, Ivy E, Josie G, Elena P, Lily H, Paige N, Olivia W, Rosie B, Quinn B\nMusical Theatre: Chloe T, Kira L, Ella S, Leah B, Tess S, Lucy N, Isla K, Daisy H, Ava S, Harper S, Amelia N\nSolo - Zoe: Zoe C\nCompany Lyrical - Rivers: Rosie B, Emma H, Lily H, Ivy E, Elena P, Emma W, Olivia W, Maya B, Elena B, Quinn B\nFinale and bows: ";
+renderAll();
+try{ var seenPro = false; new IntersectionObserver(function(es){ es.forEach(function(x){ if(x.isIntersecting && !seenPro && !isPro()){ seenPro = true; track('pro-view'); } }); }).observe($('proSec')); }catch(e){}
+if(GC_CODE && GC_CODE.indexOf('*') < 0){ var gs = document.createElement('script'); gs.async = true; gs.src = '//gc.zgo.at/count.js'; gs.setAttribute('data-goatcounter', 'https://' + GC_CODE + '.goatcounter.com/count'); document.head.appendChild(gs); }
+(function(){
+  var q = new URLSearchParams(location.search);
+  var via = (q.get('via') || '').replace(/[^a-z0-9-]/g, '').slice(0, 20), af = (q.get('a') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  if(via) track('via-' + via);
+  if(af) track('aff-' + af);
+  if(q.get('bought') === '1' && !isPro()) setTimeout(function(){ $('proSec').scrollIntoView(); $('proKey').focus(); }, 400);
+  if(via.indexOf('selftest') === 0 && q.get('fire') === 'all'){   // live check only: every funnel event once, plus its .selftest copy
+    Object.keys(FUNNEL_EV).forEach(function(n){ track(n); });
+  }
+})();
+window.ROAPP = {state: function(){ return S; }, pending: function(){ return QUEUE.length + (SENDING ? 1 : 0); }, build: build, running: function(){ return running; }};   // for tests
+})();
+</script>
+</body>
+</html>
