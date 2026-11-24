@@ -148,13 +148,16 @@ footer{border-top:1px solid var(--line);padding:18px 0 30px;font-size:15px}
 .dlg{background:var(--card);border-radius:12px;padding:18px;width:min(560px,100%);max-height:88vh;overflow:auto;border:2px solid var(--ink)}
 .dlg h2{margin-bottom:8px}
 .evlist{display:grid;gap:2px;max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px}
-.evlist label{display:flex;gap:8px;align-items:baseline}
+.evlist label,.chk{display:flex;gap:8px;align-items:baseline}
+.chk{margin:10px 0}
 .found .stepper button{width:32px;height:32px;font-size:18px}
 .found .stepper output{font-size:22px;min-width:36px}
 #printArea{display:none}
 @media (max-width:860px){
   .hero{grid-template-columns:1fr}
   .grid{grid-template-columns:1fr}
+  .grid.has-order > #s3{order:-1}
+  .grid.has-order #editList{display:inline-block}
   #proSec{grid-template-columns:1fr}
 }
 @media (max-width:520px){
@@ -259,6 +262,7 @@ Mia	Kim	Tiny Tots Ballet</code>
       <div id="oTools" class="row" hidden>
         <button class="btn small" id="moreBtn" type="button">Look for fewer quick changes</button>
         <button class="btn small ghost" id="freshBtn" type="button">Start over from scratch</button>
+        <a class="btn small ghost" id="editList" href="#s1" style="display:none;text-decoration:none">Edit the list</a>
       </div>
       <p class="hint" id="lookHint" hidden></p>
       <div class="find" id="findRow" hidden>
@@ -335,10 +339,12 @@ function clean(s){ return String(s == null ? '' : s).replace(/[\s\u00a0]+/g, ' '
 /* Same person if the names match ignoring case, dots, commas and extra spaces ("Ava M." = "ava m"). */
 function nameKey(s){ return clean(s).toLowerCase().replace(/[.,'"’`]/g, '').replace(/\s+/g, ' ').trim(); }
 
-var H_FIRST = /^(first|first name|given name|firstname|student first name|dancer first name)$/i;
-var H_LAST = /^(last|last name|surname|family name|lastname|student last name|dancer last name)$/i;
-var H_DANCER = /\b(dancer|dancers|student|students|name|names|performer|child|kid|participant)\b/i;
-var H_ROUTINE = /\b(routine|routines|dance|dances|class|classes|number|piece|song|title|group|act|choreography|style)\b/i;
+/* header words. A cell is a routine column if it names a class/routine and not a person ("Class Name" = routine, "Student Name" = dancer). */
+var H_PERSON = /\b(student|dancer|performer|child|kid|participant|first|last|surname|given|family name)\b/i;
+var H_ROUTINE = /\b(routines?|dances?|class(es)?|number|piece|song|title|group|choreography|style|act)\b/i;
+var H_DANCER = /\b(dancers?|students?|performers?|child|kid|participant|names?)\b/i;
+var H_FIRST = /\b(first|given)\b/i, H_LAST = /\b(last|surname|family name)\b/i;
+var H_DAY = /\b(day|days|weekday)\b/i, H_TIME = /\b(time|start|start time|class time)\b/i;
 
 /* "Ava M, Mia K and Zoe" -> 3 names. With a ";" anywhere, only ";" and "/" split, so "Martinez, Ava; Kim, Mia" stays 2 people. */
 function splitNames(s){
@@ -360,9 +366,14 @@ function splitCSV(line){
 /* Routine name and dancer part of one "Routine: a, b" line. The LAST ":" that isn't inside a time (4:30) wins, so
    "Swan Lake: Act 2: Ava" -> "Swan Lake: Act 2". Without a colon, the last " - ". */
 function splitLine(l){
-  for(var i = l.length - 1; i > 0; i--){
-    if(l[i] === ':' && !(/\d/.test(l[i - 1]) && /\d/.test(l[i + 1] || ''))) return [l.slice(0, i), l.slice(i + 1)];
+  var depth = 0, cut = -1;
+  for(var i = 0; i < l.length; i++){
+    var c = l[i];
+    if(c === '(' || c === '[') depth++;
+    else if((c === ')' || c === ']') && depth > 0) depth--;
+    else if(c === ':' && depth === 0 && i > 0 && !(/\d/.test(l[i - 1]) && /\d/.test(l[i + 1] || '')) && l.slice(i, i + 3) !== '://') cut = i;
   }
+  if(cut > 0) return [l.slice(0, cut), l.slice(cut + 1)];
   var m = l.match(/^(.*\S)\s+[-–—]\s+(.*)$/);
   return m ? [m[1], m[2]] : null;
 }
@@ -373,12 +384,14 @@ function splitLine(l){
    A  one routine per line: "Tiny Tap: Ava M, Mia K, Zoe L" (":" or " - "), or "Tiny Tap<tab>Ava M<tab>Mia K"
    C  blocks: routine name on its own line, its dancers on the following lines, a blank line between routines
    Returns {routines:[{name, dancers:[display names]}], shape, warnings:[]} */
-function parseRoster(text){
+function parseRoster(text, opts){
+  opts = opts || {};
   var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
   var nonEmpty = lines.map(function(l){ return l.replace(/[ \u00a0]+/g, ' ').replace(/\s+$/, '').replace(/^ +/, ''); }).filter(function(l){ return l.replace(/\t/g, '').trim(); });
   var warnings = [];
   if(!nonEmpty.length) return {routines: [], shape: '', warnings: []};
-  var t = table(nonEmpty, warnings);
+  var t = table(nonEmpty, warnings, opts);
+  if(t && t.error) return {routines: [], shape: 'rows', warnings: [t.error]};
   if(t) return finish(t, 'rows', warnings);
 
   // lines that look like "Routine: a, b" / "Routine - a, b" / "Routine<tab>a<tab>b"
@@ -405,6 +418,7 @@ function parseRoster(text){
       return;
     }
     var sp = splitLine(l);
+    if(!sp && l.indexOf(',') > 0){ var cs = splitCSV(l).filter(Boolean); if(cs.length > 1) sp = [cs[0], cs.slice(1).join('; ')]; }
     if(!sp){ warnings.push('Line ' + (i + 1) + ' has no ":" after the routine name, so it was read as a routine with no dancers: "' + l.slice(0, 40) + '"'); out.push({name: l, dancers: []}); return; }
     out.push({name: sp[0], dancers: splitNames(sp[1])});
   });
@@ -413,31 +427,47 @@ function parseRoster(text){
 
 /* A table is: most lines split into the same number (2+) of cells by tab (or by comma when no line has a ":"),
    and some column repeats (a routine has several dancers). Returns [{name, dancers}] or null. */
-function table(nonEmpty, warnings){
+function headRole(c){
+  if(!c || c.length > 60) return '';
+  if(H_FIRST.test(c) && H_PERSON.test(c) || /^first( name)?$|^given name$/i.test(c)) return 'first';
+  if(H_LAST.test(c) && (H_PERSON.test(c) || /name/i.test(c)) || /^(last|surname)( name)?$/i.test(c)) return 'last';
+  if(H_ROUTINE.test(c) && !H_PERSON.test(c)) return 'routine';
+  if(H_DAY.test(c)) return 'day';
+  if(H_TIME.test(c)) return 'time';
+  if(H_DANCER.test(c)) return 'dancer';
+  return '';
+}
+function table(nonEmpty, warnings, opts){
+  opts = opts || {};
   var tabs = nonEmpty.filter(function(l){ return l.indexOf('\t') >= 0; }).length;
   var useTab = tabs >= nonEmpty.length * 0.7;
-  if(!useTab && nonEmpty.some(function(l){ return /:/.test(l.replace(/\d:\d/g, '')) || /\s[-–—]\s/.test(l); })) return null;
-  var rows = nonEmpty.map(function(l){ return useTab ? l.split('\t').map(clean) : splitCSV(l); });
-  var counts = {};
-  rows.forEach(function(r){ var n = r.length; while(n > 1 && r[n - 1] === '') n--; counts[n] = (counts[n] || 0) + 1; });
-  var m = 0, best = 0;
-  Object.keys(counts).forEach(function(k){ if(+k >= 2 && counts[k] > best){ best = counts[k]; m = +k; } });
-  if(!m || best < Math.max(2, nonEmpty.length * 0.7)) return null;
-  rows = rows.filter(function(r){ return r.length >= m; }).map(function(r){ return r.slice(0, m); });
-  // header?
-  var head = rows[0], first = -1, last = -1, dn = -1, rt = -1;
+  var semis = nonEmpty.filter(function(l){ return l.indexOf(';') >= 0 && l.indexOf(',') < 0 && l.indexOf(':') < 0; }).length;
+  var split1 = function(l){ return useTab ? l.split('\t').map(clean) : semis >= nonEmpty.length * 0.7 ? l.split(';').map(clean) : splitCSV(l); };
+  // a header row that names a person column and a routine column makes it a table even if some cells hold ":" or " - "
+  var h0 = split1(nonEmpty[0]).map(headRole);
+  var headed = h0.indexOf('routine') >= 0 && (h0.indexOf('dancer') >= 0 || h0.indexOf('first') >= 0 || h0.indexOf('last') >= 0);
+  if(!useTab && !headed && nonEmpty.some(function(l){ return /:/.test(l.replace(/\d:\d/g, '')) || /\s[-–—]\s/.test(l); })) return null;
+  var rows = nonEmpty.map(split1);
+  var len = function(r){ var n = r.length; while(n > 1 && r[n - 1] === '') n--; return n; };
+  if(rows.filter(function(r){ return len(r) >= 2; }).length < Math.max(2, nonEmpty.length * 0.7)) return null;
+  // width = widest row (rows with empty cells at the end, e.g. no day/time for the finale, are padded, never dropped)
+  var m = Math.min(16, Math.max.apply(null, rows.map(len)));
+  rows = rows.map(function(r){ r = r.slice(0, m); while(r.length < m) r.push(''); return r; });
+  var head = rows[0], first = -1, last = -1, dn = -1, rts = [], day = -1, tm = -1;
   head.forEach(function(c, i){
-    if(H_FIRST.test(c) && first < 0) first = i;
-    else if(H_LAST.test(c) && last < 0) last = i;
-    else if(H_ROUTINE.test(c) && !H_DANCER.test(c) && rt < 0) rt = i;
-    else if(H_DANCER.test(c) && dn < 0) dn = i;
+    var role = headRole(c);
+    if(role === 'first' && first < 0) first = i;
+    else if(role === 'last' && last < 0) last = i;
+    else if(role === 'routine') rts.push(i);
+    else if(role === 'day' && day < 0) day = i;
+    else if(role === 'time' && tm < 0) tm = i;
+    else if(role === 'dancer' && dn < 0) dn = i;
   });
-  // "Class Name" matches both; prefer it as the routine when no other routine column was found
-  if(rt < 0) head.forEach(function(c, i){ if(rt < 0 && i !== dn && H_ROUTINE.test(c)) rt = i; });
-  var hasHead = (first >= 0 || last >= 0 || dn >= 0) && rt >= 0;
+  var hasHead = (first >= 0 || last >= 0 || dn >= 0) && rts.length > 0;
   var body = hasHead ? rows.slice(1) : rows;
   if(body.length < 2) return null;
-  var distinct = function(i){ var s = {}; body.forEach(function(r){ s[nameKey(r[i])] = 1; }); return Object.keys(s).length; };
+  var filled = function(i){ return body.filter(function(r){ return r[i] !== ''; }).length; };
+  var distinct = function(i){ var s = {}; body.forEach(function(r){ if(r[i] !== '') s[nameKey(r[i])] = 1; }); return Object.keys(s).length; };
   var nameOf;
   if(hasHead){
     nameOf = function(r){
@@ -446,39 +476,56 @@ function table(nonEmpty, warnings){
       return r[first >= 0 ? first : last];
     };
   } else {
+    day = tm = -1;
     if(m !== 2){
-      // no header and extra columns: dancer = first column, routine = the other text column that repeats most
-      rt = -1; var fewest = Infinity;
-      for(var i = 1; i < m; i++){
-        var numeric = body.every(function(r){ return /^[\d\s:.apm\/-]*$/i.test(r[i]); });
-        var dc = distinct(i);
-        if(!numeric && dc < fewest){ fewest = dc; rt = i; }
-      }
-      if(rt < 0 || fewest > body.length * 0.8) return null;   // no column repeats: "Routine<tab>dancer<tab>dancer" lines, not a table
-      dn = 0;
-      warnings.push('Read column 1 as dancers and column ' + (rt + 1) + ' as routines. If that\'s wrong, add a header row like "Dancer, Routine".');
-    } else {
-      var d0 = distinct(0), d1 = distinct(1);
-      if(Math.min(d0, d1) > body.length * 0.8) return null;   // nothing repeats: not a table, probably "Routine<tab>dancers"
-      rt = d0 < d1 ? 0 : 1; dn = 1 - rt;
-      if(d0 === d1) warnings.push('Couldn\'t tell which column is the routine. Read column ' + (rt + 1) + ' as routines; add a header row like "Dancer, Routine" if that\'s wrong.');
+      if(distinct(0) >= body.length) return null;   // a new name on every line: "Routine<tab>Ava<tab>Mia" lines, not a table
+      return {error: 'This looks like a table, but it has no header row, so I can\'t tell which column is which. Add a first row like "Dancer, Class" (or "First Name, Last Name, Class") and read it again.'};
     }
+    var d0 = distinct(0), d1 = distinct(1);
+    if(Math.min(d0, d1) > body.length * 0.8) return null;   // nothing repeats: not a table, probably "Routine<tab>dancers"
+    var rt0 = d0 < d1 ? 0 : 1;
+    if(opts.swap) rt0 = 1 - rt0;
+    rts = [rt0]; dn = 1 - rt0;
+    warnings.push('Read column ' + (rt0 + 1) + ' as routines and column ' + (dn + 1) + ' as dancers.' + (d0 === d1 ? ' (It couldn\'t tell for sure.)' : ''));
     nameOf = function(r){ return r[dn]; };
   }
-  var byR = {}, orderR = [];
-  body.forEach(function(r){
-    var d = nameOf(r), rn = r[rt], k = nameKey(rn);
-    if(!k || !nameKey(d)) return;
-    if(!byR[k]){ byR[k] = {name: rn, dancers: []}; orderR.push(k); }
-    byR[k].dancers.push(d);
+  // a Google Forms checkbox answer holds several routines in one cell: "Tiny Tap, Jazz I"
+  var multi = hasHead && rts.length === 1 && body.filter(function(r){ return /,\s/.test(r[rts[0]]); }).length >= body.length * 0.3;
+  var slots = {};
+  if(day >= 0 || tm >= 0) body.forEach(function(r){
+    var k = nameKey(r[rts[0]]); if(!k) return;
+    var when = clean([day >= 0 ? r[day] : '', tm >= 0 ? r[tm] : ''].join(' '));
+    (slots[k] = slots[k] || {})[when] = 1;
   });
+  var byR = {}, orderR = [], skipped = 0;
+  body.forEach(function(r){
+    var d = nameOf(r), any = false;
+    if(!nameKey(d)){ if(r.join('')) skipped++; return; }
+    rts.forEach(function(ci){
+      var cells = multi ? r[ci].split(/\s*[,;]\s+/) : [r[ci]];
+      cells.forEach(function(rn){
+        rn = clean(rn); var k = nameKey(rn);
+        if(!k) return;
+        any = true;
+        if(slots[k] && Object.keys(slots[k]).length > 1){
+          var when = clean([day >= 0 ? r[day] : '', tm >= 0 ? r[tm] : ''].join(' '));
+          if(when){ rn = rn + ' (' + when + ')'; k = nameKey(rn); }
+        }
+        if(!byR[k]){ byR[k] = {name: rn, dancers: []}; orderR.push(k); }
+        byR[k].dancers.push(d);
+      });
+    });
+    if(!any) skipped++;
+  });
+  if(skipped) warnings.push(skipped + ' row' + (skipped === 1 ? ' has' : 's have') + ' no dancer or no class, so ' + (skipped === 1 ? 'it was' : 'they were') + ' left out.');
+  if(hasHead) warnings.unshift('Columns used: ' + (first >= 0 && last >= 0 ? '"' + head[first] + '" + "' + head[last] + '"' : '"' + head[dn >= 0 ? dn : first >= 0 ? first : last] + '"') + ' for dancers, ' + rts.map(function(i){ return '"' + head[i] + '"'; }).join(', ') + ' for routines' + (multi ? ' (several per cell)' : '') + (day >= 0 || tm >= 0 ? ' (split by ' + [day >= 0 ? head[day] : '', tm >= 0 ? head[tm] : ''].filter(Boolean).join(' and ') + ' when a class meets more than once)' : '') + '.');
   return orderR.length ? orderR.map(function(k){ return byR[k]; }) : null;
 }
 
 function finish(list, shape, warnings){
   var seen = {}, routines = [];
   list.forEach(function(r){
-    var name = clean(r.name).replace(/^#?\d+\s*[.):\-–]?\s+(?=\S)/, '') || 'Routine';
+    var name = clean(r.name).replace(/^(#\s*\d+\s*[.):\-–]?|\d+\s*[.):\-–])\s+(?=\S)/, '') || 'Routine';   // "1. Tap", "#1 Tap", "01 - Jazz"; "7 Rings" stays
     var k = nameKey(name), n = 2, base = name;
     while(seen[k]){ name = base + ' (' + n++ + ')'; k = nameKey(name); }
     seen[k] = 1;
@@ -694,49 +741,51 @@ function bestOf(P, runs, seed, start){
 }
 
 /* Split routines into k shows. every[r] = routine is in every show (company numbers). Each dancer's other routines
-   should land in one show (so a family buys one ticket); shows should be about the same length (routine count,
-   or minutes when mins[] is given). Returns {show: [show index per routine, -1 for every-show routines], split: [dancers in 2+ shows]}. */
+   should land in one show, and so should each family's (opts.groups: [[routine...]] per family, e.g. siblings),
+   so a family buys one ticket; shows should be about the same length (routine count, or minutes when opts.mins[] is given).
+   Returns {show: [show index per routine, -1 for every-show routines], split: [dancers in 2+ shows], splitGroups: [families in 2+ shows]}. */
 function split(dancers, n, k, every, opts){
   opts = opts || {};
-  var R = rng(opts.seed || 1), mins = opts.mins, show = new Array(n), r, s, d;
+  var R = rng(opts.seed || 1), mins = opts.mins, groups = opts.groups || [], show = new Array(n), r, s;
   var w = function(x){ return mins && mins[x] > 0 ? mins[x] : 1; };
-  var free = []; for(r = 0; r < n; r++){ if(every[r]) show[r] = -1; else { free.push(r); show[r] = -1; } }
-  if(k < 2 || !free.length){ free.forEach(function(x){ show[x] = 0; }); return {show: show, split: []}; }
+  var units = dancers.concat(groups), uw = dancers.map(function(){ return 100; }).concat(groups.map(function(){ return opts.groupW || 60; }));
+  var free = []; for(r = 0; r < n; r++){ show[r] = -1; if(!every[r]) free.push(r); }
+  k = Math.max(1, Math.min(k, free.length));
+  if(k < 2){ free.forEach(function(x){ show[x] = 0; }); return {show: show, split: [], splitGroups: [], k: k}; }
   var total = 0; free.forEach(function(x){ total += w(x); });
   var target = total / k, load = []; for(s = 0; s < k; s++) load.push(0);
-  // start: routines that share dancers go together (greedy by connected size), into the lightest show
   var byR = []; for(r = 0; r < n; r++) byR.push([]);
-  dancers.forEach(function(rs, d){ rs.forEach(function(x){ byR[x].push(d); }); });
+  units.forEach(function(rs, u){ rs.forEach(function(x){ if(byR[x].indexOf(u) < 0) byR[x].push(u); }); });
+  // start: routines that share people go together, into the lightest show
   free.slice().sort(function(a, b){ return byR[b].length - byR[a].length; }).forEach(function(x){
     var bs = 0, bv = Infinity;
     for(s = 0; s < k; s++){
-      var share = 0; byR[x].forEach(function(dd){ dancers[dd].forEach(function(y){ if(y !== x && !every[y] && show[y] === s) share++; }); });
+      var share = 0; byR[x].forEach(function(u){ units[u].forEach(function(y){ if(y !== x && !every[y] && show[y] === s) share++; }); });
       var v = load[s] / target - share * 0.05;
       if(v < bv){ bv = v; bs = s; }
     }
     show[x] = bs; load[bs] += w(x);
   });
-  var cnt = dancers.map(function(rs){ var c = []; for(s = 0; s < k; s++) c.push(0); rs.forEach(function(x){ if(!every[x]) c[show[x]]++; }); return c; });
-  function dcost(d){ var c = 0; for(var q = 0; q < k; q++) if(cnt[d][q]) c++; return c > 1 ? (c - 1) * 100 : 0; }
+  var cnt = units.map(function(rs){ var c = []; for(s = 0; s < k; s++) c.push(0); rs.forEach(function(x){ if(!every[x]) c[show[x]]++; }); return c; });
+  function ucost(u){ var c = 0; for(var q = 0; q < k; q++) if(cnt[u][q]) c++; return c > 1 ? (c - 1) * uw[u] : 0; }
   function bal(){ var c = 0; for(var q = 0; q < k; q++){ var x = (load[q] - target) / Math.max(1, target) * 10; c += x * x * 40; } return c; }
-  var cost = bal(); dancers.forEach(function(rs, dd){ cost += dcost(dd); });
+  var cost = bal(); units.forEach(function(rs, u){ cost += ucost(u); });
   var bestShow = show.slice(), bestCost = cost, iters = opts.iters || 200000, T0 = 200, T1 = 1;
   for(var it = 0; it < iters; it++){
     var T = T0 * Math.pow(T1 / T0, it / iters);
     var x = free[(R() * free.length) | 0], from = show[x], to = (R() * k) | 0;
     if(to === from) continue;
-    var ds = byR[x], before = bal(), i2;
-    for(i2 = 0; i2 < ds.length; i2++) before += dcost(ds[i2]);
+    var us = byR[x], before = bal(), i2;
+    for(i2 = 0; i2 < us.length; i2++) before += ucost(us[i2]);
     show[x] = to; load[from] -= w(x); load[to] += w(x);
-    for(i2 = 0; i2 < ds.length; i2++){ cnt[ds[i2]][from]--; cnt[ds[i2]][to]++; }
-    var after = bal(); for(i2 = 0; i2 < ds.length; i2++) after += dcost(ds[i2]);
+    for(i2 = 0; i2 < us.length; i2++){ cnt[us[i2]][from]--; cnt[us[i2]][to]++; }
+    var after = bal(); for(i2 = 0; i2 < us.length; i2++) after += ucost(us[i2]);
     var delta = after - before;
     if(delta <= 0 || R() < Math.exp(-delta / T)){ cost += delta; if(cost < bestCost - 1e-9){ bestCost = cost; bestShow = show.slice(); } }
-    else { show[x] = from; load[from] += w(x); load[to] -= w(x); for(i2 = 0; i2 < ds.length; i2++){ cnt[ds[i2]][from]++; cnt[ds[i2]][to]--; } }
+    else { show[x] = from; load[from] += w(x); load[to] -= w(x); for(i2 = 0; i2 < us.length; i2++){ cnt[us[i2]][from]++; cnt[us[i2]][to]--; } }
   }
-  var sp = [];
-  dancers.forEach(function(rs, dd){ var seen = {}; rs.forEach(function(x){ if(!every[x]) seen[bestShow[x]] = 1; }); if(Object.keys(seen).length > 1) sp.push(dd); });
-  return {show: bestShow, split: sp};
+  function splitOf(list){ var out = []; list.forEach(function(rs, i){ var seen = {}; rs.forEach(function(x){ if(!every[x]) seen[bestShow[x]] = 1; }); if(Object.keys(seen).length > 1) out.push(i); }); return out; }
+  return {show: bestShow, split: splitOf(dancers), splitGroups: splitOf(groups), k: k};
 }
 
 return {clean: clean, nameKey: nameKey, parseRoster: parseRoster, between: between, totalCost: totalCost, conflicts: conflicts,
@@ -756,7 +805,7 @@ var VERIFY_URL = 'https://app-bizz-api.whop.site/api/verify';
 var CHECKOUT_HOME = 'https://whop.com/checkout/ch_hSKpRykRGEUh9jD/';
 var CHECKOUT_PLAN = 'https://whop.com/checkout/plan_WK58kS06PCWay';
 var PRICE = '$29';
-var GIFT = [];
+var GIFT = ['080911905b757e73290a5c43f42a3550b6327a8afc2da4099f09c38c849399a8','f7a56b8431cdfc3f1df3e38d1bc8c8871fe822f235db7e6afc576754d8e9cdd4','594d098eff61cdaef425845b1b97785cb968d24f4bdb1f76dbcf63c134e87094','20ecb14c41fd3c96241e88996922929833e30edd4626eb0156c467d114d33c4f','39ac1b13677c0c8cf96e40ec86545f5ca7078c47ddbf70f858f0a57c05c6f020','6cce4c2a25ff5a83b9e0a5ca0c262bcfd9f56bf922e4bebcc508893dded4e26e','0584e24a8953aef875505415645987df60b83fd0c9f8a69d86c02db98b506849','ecd9cceca9d8dbd7f1064634380c550d49a68a4f08dc2be3668e57af78eef37c','bfc4e30005d3527763c747a5fad41006bd51113636a425dd9489ed9325bcf567','361cf2b6db59142e33bfa65c287b3a5a34fa06f54bb14df60f0ffa0532125887','f3713ea5d2befcf398403b8d60e6d2fcdafd6c13c27f0a0cc7d2ffb46aa8ca9d','9881a9ed06eb4dfce0f6b5966572feb7b5c39d9597cf580ba2f04337dc169338','15d46b497502763105b9d867cf85589a7dae8cbb5a2c588d8e8647d5cd52dc74','66599ddcadc5f424f8c56e3fec61aaddecce3ffb169e0b26a532f8c7538d18e0','c40cfc08a1d7158a2f93574922db66f729752fc2b90f3289f65e6058eed46d3b','211a4de5bf0d6fb8683ec8827ee45fb79e041391765e6ffbf6fb37f0d7859e2a','00be729465807913ef69c0994fccae3160b16a128ffc6e52a8c81011ff1fb875','8bf45bd74ae225754805b63e4d1bbb019a1289004e5b055ca8da57d77ad2488d','a4b01676346145652eede3b21a75cf74afa384fd49a8c78be7402f0df291cc85','e18c685164275fbc65405b1fac6acc677dd9db110ad99cb32659b6328eca2ebd','2debc36809131b0846752d79bd3ac6e4d8db874e123c39b28308cd54bf351dfe','338a0ee4278071ec36ee758ec5c40b39b8a1a512394c64a315d5f71f11677177','afae28a3a8a96874d5b369c36cae58ef42da52059f6ae35a310bbafea31528af','ea3d668afa5968973080012c70b2eaa6b2bfc5068c5ac9e32c094bdd74b1db1b','98710505e1596771090596fcfe02c2008be1d07c43ab03d15025e7f80d0197df','1af8fa3e07f94cf1ce731825951299350871d19b868f4cfba25afc9342525fb0','9c114cf3870a1d4e2bcbf733a882a58ce313ca3263d1fc2b10a143c966095bbf','325bc1080bd888bb23634f31f83e92f735a83d8e4c014f5e08acfba44f5dde16','344896e378cdc2181a4423ea385420e832f9eebd5935250e27bf0218acb1c324','6a9e139cf24d5130c8147bb3895e0e4e117ecb710fc16a06cb73b8795a9adabc','2852b36c4a020e8d007f4e02d8730a759ae5844d7a36dad092aabeb4f84de88b','68fa19794c618d24695f100d825afb3eac0f0bcde16c2f34a2e2026943673676','ab31f155cb09c67268b076e392764f089bcee314b6d2b350dd701a3ef029b6d1','90d53af35ede5fc9aa8829e7ed8bc9724102ee342c57157c42c845f12b86cfbe','5f7d159e53b8763241ad31357ef12b2e5661a9278d35bb5a79a50ecb3093c0e3','5b0094b69e2e7b4b1e890a3857aaa69cd7f2444367da2d87b973c23ad31648f5','15b25308abbd633c12148858dfa23e7659012fe47065fad28fa4c8bfa3276744','4c3dd1e1db243b1cf803b71f97b675bbca47ca88b1a630bd96a57a81e3c3a1ad','02bfdd808456e3a920be3b79d642e002e47bae2cb7c0280d15e0a6928ea6302a','b31f1c7907d20b43e2ff1a1442ef3533c0572a1ce55aaa04f7b66f98dad2f523','bc7a431eb12c717dab600c9e17d9235f1277fe823b9a9ae791fb37292d7c5043','0d51604e1e5fa0b1342e34296a633e12dd9bcd4c0f6a2376785fae9b612644f3','f24397b11f7e4b72e66376a8b3ff0100f3fac8ca27be089a6bf11dd08fe3d890','f81657ec2aa7e5ffaee0b24c6ba0a3c558295dd403cdf730eb41f5958b2b1bdf','13a81ed1ac64b37402155efa11a8e38076eb6ba8eaf863abf9269a491774ce3e','121ca42a850ef4577e33aa833a0af463a18a803e5f21681277a97f3bab5540c6','f017ba545aabe89652b2800c33c2b44606ac8622a60d881f1c8be5c532c948ee','b8f560f0e72f347680f86b2a66c0f66a8baab6212f5bb66e0e0f25d8123877ed','0cb6f4844665bb1489e7e6c94a0539aab2ec983b64b408971b96fcb0b748cfef','e0539c7884cdfd9cb79e38fd5cffed716a468dc8885c249f32672e08f22d0fd8','ffe0b43fcbc4dca614d8e2e0d6477a87f106ee4fc494d8766c7e5355fdfc784a','6408e157710dc858f82cae394d74d5dce63bbbcfebf2ada46ddd78462bd51a6f','ed6fd24c49ebec0a03ad31c2f2da81d2816621e2675fe50f7fbca621eb02a283','dcdf2f8d137c3e6436c8b0c816c218c85ef7e17f4c3e006e109fc46410e719ef','9f61729f94dc590d3717e4a4ee7c27dd749411ceaaee033a1544e749e152f1df','7c2b341a5b7ff975878323b0a95f53b3a8d996f67b7ada526234ec96a45a4187','0ac11a1c6c93003d85e29ba01f174f9b994306c8455cef725581fc1ed88ecae3','0efbdec2520592c7ecf26feb8e8fc85ccbdeabfde283d417c49721025d7e027c','09e3de41241a8b2626def86859519440c3cc0a21ec149acad3803aee7705693f','b049b2a5b06640347655dcd761ed4975d86906eccd76cd4bea527335d2117ba6','676c149d34f6e93596525977fdb65859e6045c1003a5fe9257537ca06d34dda2','2140b2b04553e68960d5487de40bc0b6788d4a7761d96881c950bcb80492c186','74fc8982f39d3f1100d1cda97a36fdb006d5e0823a7a1af8abdb03ca177dbb25','8d8afcca96512bdd4680918ad5bb86c8317f02c39a0e80c5da37168b8294ae4d','97953a2d207a1ee99b11934f758365eb032bfeaa58b12f1751d21f6f8b8decd4','4dc997f82fe80c5a98753cd5adfd2da5a9a207b561a4a9667993b41470e69a52','af8714d94bcdb69de465b237dc1ddfc4b10fa19f4d4185f6453cd504de8de407','678a08c3ac6d9d8dbb9cdf900eb059b98e970481bdf9dba466027d7041229eda','86fc77bc409b07937d29810bb8ddab589b77ee59262f6f513082e17d621825cc'];
 var KEY = 'ro.v1', PROKEY = 'ro.pro', BUDGET_MS = 8000;
 
 /* ---------- measurement (GoatCounter). Copied from Handbell Chart / Family Formals: ?via follows the visitor down the funnel. ---------- */
@@ -802,13 +851,17 @@ function say(t){ var e = $('toast'); e.textContent = t; e.hidden = false; clearT
 var PLACE = ['Anywhere', 'Early (first third)', 'Late (last third)', 'Opens the show', 'Closes the show'];
 var PRO = lsGet(PROKEY, null);
 function isPro(){ return !!(PRO && (PRO.email || PRO.gift)); }
-function newShow(name){ return {name: name || 'My recital', text: '', routines: [], gap: 3, act1: -1, order: null, dancerGap: {}, sample: false}; }
+function newShow(name){ return {uid: Math.random().toString(36).slice(2, 10), name: name || 'My recital', text: '', routines: [], gap: 3, act1: -1, order: null, dancerGap: {}, sample: false}; }
 var S = lsGet(KEY, null);
 if(!S || !Array.isArray(S.shows) || !S.shows.length) S = {v: 2, cur: 0, shows: [newShow()]};
 S.shows = S.shows.filter(function(x){ return x && Array.isArray(x.routines); });
 if(!S.shows.length) S.shows = [newShow()];
 S.shows.forEach(sanitize);
 if(!(S.cur >= 0 && S.cur < S.shows.length)) S.cur = 0;
+/* dancer rules live at the top: Ava needs 5 numbers in every show (r2) */
+if(!S.dg || typeof S.dg !== 'object' || Array.isArray(S.dg)) S.dg = {};
+S.shows.forEach(function(sh){ Object.keys(sh.dancerGap || {}).forEach(function(k){ if(!S.dg[k]) S.dg[k] = sh.dancerGap[k]; }); sh.dancerGap = {}; });
+Object.keys(S.dg).forEach(function(k){ var v = parseInt(S.dg[k], 10); if(v >= 1 && v <= 12) S.dg[k] = v; else delete S.dg[k]; });
 function sanitize(sh){
   sh.gap = Math.max(1, Math.min(10, parseInt(sh.gap, 10) || 3));
   sh.routines = sh.routines.filter(function(r){ return r && typeof r.name === 'string'; }).map(function(r){
@@ -826,6 +879,8 @@ function sanitize(sh){
   if(typeof sh.text !== 'string') sh.text = '';
   if(typeof sh.name !== 'string' || !sh.name) sh.name = 'My recital';
   sh.sample = !!sh.sample;
+  if(typeof sh.uid !== 'string') sh.uid = Math.random().toString(36).slice(2, 10);
+  if(typeof sh.splitOf !== 'string') delete sh.splitOf;
   if(sh.order) normalize(sh);
 }
 function show(){ return S.shows[S.cur]; }
@@ -836,7 +891,14 @@ function act1Of(sh){ var n = sh.routines.length; return sh.act1 === -1 ? (n >= 1
 function pinsOf(sh){
   var n = sh.routines.length, pin = [], taken = {};
   sh.routines.forEach(function(r){ pin.push(-1); });
-  function put(i, p){ p = Math.max(0, Math.min(n - 1, p)); if(!taken[p]){ taken[p] = 1; pin[i] = p; } }
+  function put(i, p){
+    p = Math.max(0, Math.min(n - 1, p));
+    for(var d = 0; d < n; d++){
+      if(p - d >= 0 && !taken[p - d]){ p = p - d; break; }
+      if(p + d < n && !taken[p + d]){ p = p + d; break; }
+    }
+    taken[p] = 1; pin[i] = p;
+  }
   sh.routines.forEach(function(r, i){ if(r.place === 3) put(i, 0); });
   sh.routines.forEach(function(r, i){ if(r.place === 4) put(i, n - 1); });
   sh.routines.forEach(function(r, i){ if(r.lock && pin[i] < 0) put(i, r.lockAt); });
@@ -860,7 +922,7 @@ function problem(sh, keep){
     r.dancers.forEach(function(d){
       var k = RO.nameKey(d);
       if(!k) return;
-      if(keys[k] == null){ keys[k] = dancers.length; dancers.push([]); names.push(d); gapD.push(sh.dancerGap[k] || 0); }
+      if(keys[k] == null){ keys[k] = dancers.length; dancers.push([]); names.push(d); gapD.push(S.dg[k] || 0); }
       var arr = dancers[keys[k]]; if(arr.indexOf(ri) < 0) arr.push(ri);
     });
   });
@@ -876,9 +938,9 @@ function problem(sh, keep){
 function guess(name){
   var g = {place: 0, noChange: false};
   if(/\b(bows?|curtain call)\b/i.test(name)){ g.place = 4; g.noChange = true; }
-  else if(/\b(finale|closing (number|dance))\b/i.test(name)) g.place = 4;
-  else if(/\bopen(ing|er)\b/i.test(name)) g.place = 3;
-  else if(/\b(tiny|tots?|toddlers?|mommy|daddy|parent (and|&) me|creative movement|pre-?ballet|pre-?school|petites?|babies|baby)\b|\b(ages?\s*)?[23]\s*[-–]\s*[345]\b|\(\s*[234]\s*(-|–|yrs?|years?)/i.test(name)) g.place = 1;
+  else if(/^(grand )?finale\b|\bfinale$|\bclosing (number|dance)\b/i.test(name)) g.place = 4;
+  else if(/^open(ing)?( number| dance| act)?$|\bopening (number|dance)\b|\bopener\b/i.test(name)) g.place = 3;
+  else if(/\b(tiny tots?|tots?|toddlers?|mommy|daddy|mum|mom|parent) (and|&|n) me\b|\b(tiny tots?|toddlers?|creative movement|pre-?ballet|pre-?school|babies|baby ballet|petite ballet)\b|\b(ages?\s*)?[23]\s*[-–]\s*[345]\b|\(\s*[234]\s*(-|–|yrs?|years?)/i.test(name)) g.place = 1;
   return g;
 }
 
@@ -887,8 +949,8 @@ function busyNo(){ if(running){ say('Wait for the order to finish, or press Stop
 function readList(fromSample){
   if(busyNo()) return false;
   var sh = show(), text = $('roster').value, out = $('readOut');
-  var res = RO.parseRoster(text);
-  if(!res.routines.length){ out.innerHTML = '<p class="err">Nothing to read yet. Paste one routine per line, like "Jazz II: Ava M, Lily R".</p>'; return false; }
+  var res = RO.parseRoster(text, {swap: SWAP});
+  if(!res.routines.length){ out.innerHTML = '<p class="err">' + esc(res.warnings[0] || 'Nothing to read yet. Paste one routine per line, like "Jazz II: Ava M, Lily R".') + '</p>'; return false; }
   var nd = res.routines.reduce(function(a, r){ return a + r.dancers.length; }, 0);
   if(!nd){ out.innerHTML = '<p class="err">Found ' + res.routines.length + ' routine' + (res.routines.length === 1 ? '' : 's') + ' but no dancers. Put a colon after each routine name, then the dancers: "Jazz II: Ava M, Lily R". From a spreadsheet, copy the columns with the dancer and the class.</p>'; return false; }
   // flags and order carry over by routine name, except from the sample to your own list
@@ -897,7 +959,19 @@ function readList(fromSample){
     sh.routines.forEach(function(r){ old[RO.nameKey(r.name)] = r; });
     if(sh.order) sh.order.forEach(function(ri, p){ oldPos[RO.nameKey(sh.routines[ri].name)] = p; });
   }
-  var guessed = [];
+  var guessed = [], renamed = [];
+  var dset = function(r){ return r.dancers.map(RO.nameKey).sort().join('|'); };
+  var newKeys = {}; res.routines.forEach(function(r){ newKeys[RO.nameKey(r.name)] = 1; });
+  var orphans = carry ? sh.routines.filter(function(r){ return !newKeys[RO.nameKey(r.name)] && r.dancers.length; }) : [];
+  res.routines.forEach(function(r){
+    if(old[RO.nameKey(r.name)] || !r.dancers.length) return;
+    var hit = orphans.filter(function(o){ return dset(o) === dset(r); });
+    if(hit.length === 1){
+      var o = hit[0]; orphans.splice(orphans.indexOf(o), 1);
+      old[RO.nameKey(r.name)] = o; oldPos[RO.nameKey(r.name)] = oldPos[RO.nameKey(o.name)];
+      renamed.push(o.name + ' → ' + r.name);
+    }
+  });
   var rs = res.routines.map(function(r){
     var o = old[RO.nameKey(r.name)];
     if(o) return {name: r.name, dancers: r.dancers, act: o.act, place: o.place, lock: o.lock, lockAt: o.lockAt, noChange: o.noChange, every: o.every, auto: o.auto};
@@ -905,7 +979,7 @@ function readList(fromSample){
     if(g.place) guessed.push(r.name + ': ' + PLACE[g.place].toLowerCase());
     return {name: r.name, dancers: r.dancers, act: 0, place: g.place, lock: false, lockAt: -1, noChange: g.noChange, every: false, auto: !!g.place};
   });
-  var lost = carry ? sh.routines.filter(function(r){ return (r.lock || r.place >= 3) && !rs.some(function(x){ return RO.nameKey(x.name) === RO.nameKey(r.name); }); }).map(function(r){ return r.name; }) : [];
+  var lost = carry ? sh.routines.filter(function(r){ return (r.lock || r.place || r.noChange || r.act || r.every) && !rs.some(function(x){ return RO.nameKey(x.name) === RO.nameKey(r.name); }) && !renamed.some(function(t){ return t.indexOf(r.name + ' → ') === 0; }); }).map(function(r){ return r.name; }) : [];
   var order = null;
   if(carry && sh.order){
     var idx = rs.map(function(r, i){ return i; });
@@ -917,7 +991,7 @@ function readList(fromSample){
   }
   var nOld = sh.routines.length, keptAct = sh.act1;
   sh.text = text; sh.routines = rs; sh.order = order; sh.sample = !!fromSample;
-  if(!carry){ sh.dancerGap = {}; sh.act1 = -1; }
+  if(!carry){ sh.act1 = -1; }
   var w = [];
   if(sh.act1 > 0 && sh.act1 >= rs.length){ w.push('The intermission was after number ' + keptAct + ', but there are only ' + rs.length + ' routines now. It\'s back to halfway.'); sh.act1 = -1; }
   if(sh.act1 === -1 && nOld && rs.length >= 16 !== nOld >= 16 && carry) w.push(rs.length >= 16 ? 'Added an intermission halfway.' : 'Fewer than 16 routines: no intermission unless you pick one.');
@@ -932,11 +1006,14 @@ function readList(fromSample){
   var empties = rs.filter(function(r){ return !r.dancers.length; }).map(function(r){ return r.name; });
   w = w.concat(res.warnings.slice(0, 8));
   if(res.shape === 'rows') w.unshift('Read as a table: one row per dancer in a routine.');
-  if(guessed.length) w.push('Guessed from the names: ' + guessed.slice(0, 6).join('; ') + (guessed.length > 6 ? '…' : '') + '. Change it in the ⋯ menu.');
-  if(lost.length) w.push('No longer in the list, so no longer locked: ' + lost.join(', ') + '.');
+  if(guessed.length) w.push('Guessed from the names (change any in the ⋯ menu): ' + guessed.slice(0, 20).join('; ') + (guessed.length > 20 ? '; and ' + (guessed.length - 20) + ' more' : '') + '.');
+  if(renamed.length) w.push('Same dancers, new name, so its settings and spot came along: ' + renamed.join('; ') + '.');
+  if(lost.length) w.push('No longer in the list, so its settings (lock, place, act, no change) are gone: ' + lost.join(', ') + '.');
   if(empties.length) w.push('No dancers listed for: ' + empties.slice(0, 6).join(', ') + (empties.length > 6 ? '…' : '') + '. Fine for bows or a finale.');
   if(w.length) h += '<ul class="warns">' + w.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+  if(res.warnings.some(function(x){ return /^Read column/.test(x); })) h += '<p><button type="button" class="btn small ghost" id="swapBtn">Wrong way round? Swap the columns</button></p>';
   out.innerHTML = h;
+  if($('swapBtn')) $('swapBtn').onclick = function(){ SWAP = !SWAP; sh._readText = ''; readList(); track('swap'); };
   sh._readText = text;
   trackOnce('tool-start'); track('roster-read');
   if(!fromSample && text.trim() !== SAMPLE.trim() && rs.length >= 5) trackOnce('own-list');   // their own list (not the sample, 5+ routines): the real-need signal
@@ -1013,8 +1090,8 @@ function renderRules(){
   $('interSel').innerHTML = opts;
   $('buildBtn').textContent = sh.order ? 'Build again (keeps your order)' : 'Build the running order';
 }
-function hm(min){ var h = Math.floor(min / 60), m = Math.round(min % 60); return (h ? h + ' h ' : '') + m + ' min'; }
-var FIND = '', FINDSEL = '';
+function hm(min){ min = Math.round(min); var h = Math.floor(min / 60), m = min % 60; return (h ? h + ' h ' : '') + m + ' min'; }
+var FIND = '', FINDSEL = '', SWAP = false;
 function tagsOf(r){
   var t = '';
   if(r.place === 3) t += '<span class="tag lock">Opens</span>';
@@ -1030,6 +1107,7 @@ function tagsOf(r){
 function renderOrder(){
   var sh = show(), box = $('order');
   var has = !!sh.order && sh.routines.length > 0;
+  document.querySelector('.grid').classList.toggle('has-order', has);
   $('oTools').hidden = !has; $('findRow').hidden = !has; $('dragHint').hidden = !has; $('outsWrap').hidden = !has; $('lookHint').hidden = true;
   $('oTitle').textContent = S.shows.length > 1 ? sh.name : 'Running order';
   if(!has){
@@ -1091,7 +1169,7 @@ function renderOrder(){
   trackOnce('dancer-find');
   function line(d){ var ps = P.dancers[d].map(function(r){ return pos[r]; }).sort(function(x, y){ return x - y; }); return '<b>' + esc(P.names[d]) + '</b>: ' + ps.map(function(q){ return '#' + (q + 1) + ' ' + esc(sh.routines[sh.order[q]].name); }).join(' · '); }
   if(sel >= 0){
-    var k = RO.nameKey(P.names[sel]), own = sh.dancerGap[k] || 0;
+    var k = RO.nameKey(P.names[sel]), own = S.dg[k] || 0;
     f.innerHTML = (matches.length > 1 ? '<button type="button" class="btn small ghost" data-findsel="">All ' + matches.length + ' matches</button> ' : '') + line(sel) +
       '<div class="rule" style="margin:8px 0 0"><span>Her own rule: at least</span><span class="stepper" role="group" aria-label="Numbers between her routines"><button type="button" data-dg="-1" aria-label="Fewer">−</button><output>' + (own || sh.gap) + '</output><button type="button" data-dg="1" aria-label="More">+</button></span><span>numbers' + (own ? ' <button type="button" class="btn small ghost" data-dg="0">Use the show rule (' + sh.gap + ')</button>' : ' (the show rule)') + '</span></div>';
   } else {
@@ -1159,6 +1237,7 @@ function openMenu(p){
     '<label>Where <select id="pPlace">' + PLACE.map(function(t, i){ return '<option value="' + i + '"' + (r.place === i ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label>' +
     (a1 ? '<label>Act <select id="pAct"><option value="0">Either</option><option value="1"' + (r.act === 1 ? ' selected' : '') + '>Act 1 only</option><option value="2"' + (r.act === 2 ? ' selected' : '') + '>Act 2 only</option></select></label>' : '') +
     '<label><input type="checkbox" id="pNo"' + (r.noChange ? ' checked' : '') + '> No costume change going into it (bows, finale)</label>' +
+    (r.dancers.length > 1 ? '<label>Everyone in it needs <select id="pGapAll"><option value="">their own rule</option>' + [1,2,3,4,5,6,7,8].map(function(k){ return '<option value="' + k + '">' + k + ' number' + (k === 1 ? '' : 's') + (k === sh.gap ? ' (show rule)' : '') + '</option>'; }).join('') + '</select></label>' : '') +
     '<label><input type="checkbox" id="pEvery"' + (r.every ? ' checked' : '') + '> In every show (when splitting into shows)</label>' +
     '<div class="row"><label for="pTo">Move to number</label><input type="text" inputmode="numeric" id="pTo" size="3" value="' + (p + 1) + '"><button type="button" class="btn small" id="pGo">Move</button></div>' +
     '<div class="row"><button type="button" class="btn small ghost" id="pUp"' + (p === 0 ? ' disabled' : '') + '>Up one</button><button type="button" class="btn small ghost" id="pDown"' + (p === n - 1 ? ' disabled' : '') + '>Down one</button><button type="button" class="btn small ghost" id="pClose">Done</button></div>';
@@ -1168,6 +1247,11 @@ function openMenu(p){
   $('pPlace').onchange = function(){ r.place = +this.value; if(r.place >= 3) r.lock = false; changed('place'); closePop(); renderOrder(); };
   $('pNo').onchange = function(){ r.noChange = this.checked; changed('nochange'); };
   $('pEvery').onchange = function(){ r.every = this.checked; changed('every'); };
+  if($('pGapAll')) $('pGapAll').onchange = function(){
+    var v = +this.value; if(!v) return;
+    r.dancers.forEach(function(d){ var k = RO.nameKey(d); if(v === sh.gap) delete S.dg[k]; else S.dg[k] = v; });
+    save(); track('group-gap'); say('Everyone in ' + r.name + ' now needs at least ' + v + ' numbers between routines.');
+  };
   if($('pAct')) $('pAct').onchange = function(){ r.act = +this.value; changed('act-pref'); };
   $('pGo').onclick = function(){ var t = parseInt($('pTo').value, 10); if(t >= 1 && t <= n){ closePop(); moveRoutine(p, t - 1); } else say('Pick a number from 1 to ' + n + '.'); };
   $('pTo').onkeydown = function(e){ if(e.key === 'Enter') $('pGo').click(); };
@@ -1179,38 +1263,64 @@ function openMenu(p){
 
 /* ---------- shows: add, switch, split (Pro) ---------- */
 function linesOf(routines){
-  return routines.map(function(r){ var semi = r.dancers.some(function(d){ return d.indexOf(',') >= 0; }); return r.name.replace(/:/g, ' -') + ': ' + r.dancers.join(semi ? '; ' : ', '); }).join('\n');
+  return routines.map(function(r){ var semi = r.dancers.some(function(d){ return d.indexOf(',') >= 0; }); return r.name + ': ' + r.dancers.join(semi ? '; ' : ', '); }).join('\n');
+}
+function familyOf(name){
+  // siblings share a last name: "Ava Martinez" / "Martinez, Ava". One-letter initials ("Ava M") are too weak to count.
+  var n = name.trim();
+  if(n.indexOf(',') > 0){ var l = n.split(',')[0].trim(); return l.length >= 2 ? l.toLowerCase() : ''; }
+  var p = n.split(/\s+/); if(p.length < 2) return '';
+  var last = p[p.length - 1].replace(/[.]/g, ''); return last.length >= 2 ? last.toLowerCase() : '';
 }
 function openSplit(){
   if(!isPro()){ proGate('Splitting into shows'); return; }
   var sh = show();
+  if(sh.splitOf){ say('This is one of the split shows. Open the full list ("' + ((S.shows.filter(function(x){ return x.uid === sh.splitOf; })[0] || {}).name || 'the original') + '") to split again.'); return; }
   if(sh.routines.length < 4){ say('Read your full list of routines first (all shows together).'); return; }
   var pre = sh.routines.map(function(r){ return r.every || (!sh._splitSeen && /\bcompany\b/i.test(r.name)); });
+  var P = problem(sh), fams = {}, famN = 0;
+  P.names.forEach(function(nm, d){ var f = familyOf(nm); if(f){ (fams[f] = fams[f] || []).push(d); } });
+  Object.keys(fams).forEach(function(f){ if(fams[f].length > 1) famN++; });
+  var prev = S.shows.filter(function(x){ return x.splitOf === sh.uid; });
+  var maxK = Math.max(2, Math.min(6, sh.routines.length - 1));
   $('dlgBody').innerHTML = '<h2 id="dlgT">Split into shows</h2><p>Paste every routine from all your shows as one list first. It shares the routines out so each dancer\'s routines land in one show, and the shows come out about the same length.</p>' +
-    '<div class="rule"><label for="spN">Number of shows</label><select id="spN">' + [2, 3, 4, 5, 6].map(function(k){ return '<option' + (k === 3 ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>' +
+    '<div class="rule"><label for="spN">Number of shows</label><select id="spN">' + [2, 3, 4, 5, 6].filter(function(k){ return k <= maxK; }).map(function(k){ return '<option' + (k === Math.min(3, maxK) ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>' +
+    '<label class="chk"><input type="checkbox" id="spFam"' + (famN ? ' checked' : ' disabled') + '> Keep siblings in the same show (same last name' + (famN ? ': ' + famN + ' families found' : ': none found, names need last names') + ')</label>' +
     '<p><b>In every show</b> (company numbers, opening, finale):</p><div class="evlist">' + sh.routines.map(function(r, i){ return '<label><input type="checkbox" data-ev="' + i + '"' + (pre[i] || r.place >= 3 ? ' checked' : '') + '> ' + esc(r.name) + ' <small>(' + r.dancers.length + ')</small></label>'; }).join('') + '</div>' +
-    '<div class="row" style="margin-top:12px"><button type="button" class="btn tape" id="spGo">Split</button><button type="button" class="btn ghost" id="spCancel">Cancel</button></div><p id="spMsg" aria-live="polite"></p>';
+    (prev.length ? '<p class="err">This replaces the ' + prev.length + ' shows made from this list last time, and their orders.</p>' : '') +
+    '<div class="row" style="margin-top:12px"><button type="button" class="btn tape" id="spGo">Split</button><button type="button" class="btn ghost" id="spCancel">Cancel</button></div>';
   $('dlg').hidden = false; $('spN').focus();
   $('spCancel').onclick = function(){ $('dlg').hidden = true; };
   $('spGo').onclick = function(){
     var k = +$('spN').value, every = sh.routines.map(function(r, i){ return document.querySelector('[data-ev="' + i + '"]').checked; });
+    if(every.every(Boolean)){ say('Untick at least two routines: those are the ones that get shared out.'); return; }
     sh.routines.forEach(function(r, i){ r.every = every[i]; }); sh._splitSeen = true;
-    var P = problem(sh);
-    var res = RO.split(P.dancers, P.n, k, every, {seed: Math.floor(Math.random() * 1e9) + 1});
-    var base = sh.name, made = [];
-    for(var s = 0; s < k; s++){
-      var rs = sh.routines.filter(function(r, i){ return every[i] || res.show[i] === s; }).map(function(r){ return JSON.parse(JSON.stringify(r)); });
+    var groups = [], gnames = [];
+    if($('spFam').checked) Object.keys(fams).forEach(function(f){
+      if(fams[f].length < 2) return;
+      var rs = []; fams[f].forEach(function(d){ P.dancers[d].forEach(function(r){ if(rs.indexOf(r) < 0) rs.push(r); }); });
+      groups.push(rs); gnames.push(fams[f].map(function(d){ return P.names[d]; }).join(' & '));
+    });
+    var res = RO.split(P.dancers, P.n, k, every, {seed: Math.floor(Math.random() * 1e9) + 1, groups: groups});
+    k = res.k;
+    // replace the last split of this list
+    S.shows = S.shows.filter(function(x){ return x.splitOf !== sh.uid; });
+    var at = S.shows.indexOf(sh), base = sh.name, made = [];
+    for(var s2 = 0; s2 < k; s2++){
+      var rs = sh.routines.filter(function(r, i){ return every[i] || res.show[i] === s2; }).map(function(r){ return JSON.parse(JSON.stringify(r)); });
       rs.forEach(function(r){ r.lock = false; r.lockAt = -1; });
-      var ns = newShow(base + ' · show ' + (s + 1));
-      ns.routines = rs; ns.text = linesOf(rs); ns.gap = sh.gap; ns.dancerGap = JSON.parse(JSON.stringify(sh.dancerGap));
+      var ns = newShow(base + ' · show ' + (s2 + 1));
+      ns.routines = rs; ns.text = linesOf(rs); ns._readText = ns.text; ns.gap = sh.gap; ns.act1 = sh.act1 === 0 ? 0 : -1; ns.splitOf = sh.uid;
       made.push(ns);
     }
-    S.shows.splice.apply(S.shows, [S.cur + 1, 0].concat(made));
-    var counts = made.map(function(m){ return m.routines.length; });
-    var splitNames = res.split.map(function(d){ return P.names[d]; });
-    S.cur = S.cur + 1; save(); $('dlg').hidden = true; $('readOut').innerHTML = '<p class="sum">Split into ' + k + ' shows: ' + counts.join(', ') + ' routines.</p>' +
-      (splitNames.length ? '<ul class="warns"><li>' + splitNames.length + ' dancer' + (splitNames.length === 1 ? ' is' : 's are') + ' in more than one show: ' + esc(splitNames.slice(0, 12).join(', ')) + (splitNames.length > 12 ? '…' : '') + '.</li></ul>' : '<ul class="warns"><li>Every dancer\'s routines are in one show (not counting the every-show routines).</li></ul>') +
-      '<p>Open each show above and press Build. Your full list stays in "' + esc(base) + '".</p>';
+    S.shows.splice.apply(S.shows, [at + 1, 0].concat(made));
+    var stat = made.map(function(m, i){ var ds = {}; m.routines.forEach(function(r){ r.dancers.forEach(function(d){ ds[RO.nameKey(d)] = 1; }); }); return 'show ' + (i + 1) + ': ' + m.routines.length + ' routines, ' + Object.keys(ds).length + ' dancers'; });
+    var splitNames = res.split.map(function(d){ return P.names[d]; }), splitFams = res.splitGroups.map(function(g){ return gnames[g]; });
+    S.cur = at + 1; save(); $('dlg').hidden = true;
+    $('readOut').innerHTML = '<p class="sum">Split into ' + k + ' shows.</p><ul class="warns"><li>' + esc(stat.join('; ')) + '.</li>' +
+      '<li>' + (splitNames.length ? splitNames.length + ' dancer' + (splitNames.length === 1 ? ' is' : 's are') + ' in more than one show: ' + esc(splitNames.slice(0, 12).join(', ')) + (splitNames.length > 12 ? '…' : '') : 'Every dancer\'s routines are in one show (not counting the every-show routines)') + '.</li>' +
+      (groups.length ? '<li>' + (splitFams.length ? splitFams.length + ' of ' + groups.length + ' families are split: ' + esc(splitFams.slice(0, 8).join('; ')) + (splitFams.length > 8 ? '…' : '') : 'All ' + groups.length + ' families with siblings are in one show') + '.</li>' : '') +
+      '</ul><p>Open each show above and press Build. Your full list stays in "' + esc(base) + '".</p>';
     track('split'); renderAll();
   };
 }
@@ -1223,13 +1333,14 @@ document.addEventListener('click', function(e){
   if(fs){ FINDSEL = fs.getAttribute('data-findsel'); renderOrder(); return; }
   var dg = t.closest && t.closest('[data-dg]');
   if(dg){
+    if(busyNo()) return;
     var sh0 = show(), P0 = problem(sh0), fk = RO.nameKey(FIND), ms = [];
     P0.names.forEach(function(nm){ if(RO.nameKey(nm).indexOf(fk) >= 0) ms.push(RO.nameKey(nm)); });
     var key = ms.length === 1 ? ms[0] : FINDSEL;
     if(key){
-      var v = +dg.getAttribute('data-dg'), cur = sh0.dancerGap[key] || sh0.gap;
-      if(v === 0) delete sh0.dancerGap[key];
-      else { cur = Math.max(1, Math.min(12, cur + v)); if(cur === sh0.gap) delete sh0.dancerGap[key]; else sh0.dancerGap[key] = cur; }
+      var v = +dg.getAttribute('data-dg'), cur = S.dg[key] || sh0.gap;
+      if(v === 0) delete S.dg[key];
+      else { cur = Math.max(1, Math.min(12, cur + v)); if(cur === sh0.gap) delete S.dg[key]; else S.dg[key] = cur; }
       save(); track('dancer-gap'); renderOrder();
     }
     return;
@@ -1269,7 +1380,7 @@ function orderText(){
 function printOrder(){
   var sh = show(), P = problem(sh), cs = RO.conflicts(P, sh.order), a1 = P.act1, bad = {};
   cs.forEach(function(c){ bad[c.b] = (bad[c.b] || []).concat(P.names[c.d]); });
-  var h = '<h1>' + esc(sh.name) + '</h1><p class="sub">Running order · ' + sh.routines.length + ' routines · at least ' + sh.gap + ' numbers between a dancer\'s routines</p><table><tr><th>#</th><th>Routine</th><th>Dancers</th></tr>';
+  var h = '<h1>' + esc(sh.name) + '</h1><p class="sub">Running order · ' + sh.routines.length + ' routines · about ' + hm(sh.routines.length * 3.5 + (a1 ? 15 : 0)) + ' · at least ' + sh.gap + ' numbers between a dancer\'s routines</p><table><tr><th>#</th><th>Routine</th><th>Dancers</th></tr>';
   sh.order.forEach(function(ri, p){
     if(a1 && p === a1) h += '<tr class="ix"><td colspan="3">Intermission</td></tr>';
     var r = sh.routines[ri];
@@ -1328,7 +1439,7 @@ function csv(){
   var q = function(s){ s = String(s); if(/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   var rows = [['Number', 'Act', 'Routine', 'Dancer']];
   sh.order.forEach(function(ri, p){ var r = sh.routines[ri]; (r.dancers.length ? r.dancers : ['']).forEach(function(d){ rows.push([p + 1, a1 ? (p < a1 ? 1 : 2) : 1, r.name, d]); }); });
-  download((sh.name || 'recital') + ' running order.csv', rows.map(function(r){ return r.map(q).join(','); }).join('\r\n'), 'text/csv');
+  download((sh.name || 'recital') + ' running order.csv', '\ufeff' + rows.map(function(r){ return r.map(q).join(','); }).join('\r\n'), 'text/csv');
   track('csv'); trackOnce('order-used');
 }
 function download(name, text, type){
@@ -1405,7 +1516,7 @@ function restore(file){
       var cut = !isPro() && o.shows.length > 1;
       if(!confirm('Replace what\'s in this browser with the backup' + (cut ? ' (first show only: more shows need Pro)' : '') + '?')) return;
       if(cut) o.shows = o.shows.slice(0, 1);
-      S = {v: 2, cur: 0, shows: o.shows}; save(); $('roster').value = show().text; $('readOut').innerHTML = ''; renderAll(); say('Backup opened.'); track('restore');
+      S = {v: 2, cur: 0, shows: o.shows, dg: o.dg && typeof o.dg === 'object' ? o.dg : {}}; save(); $('roster').value = show().text; $('readOut').innerHTML = ''; renderAll(); say('Backup opened.'); track('restore');
     }catch(e){ say('That file isn\'t a Recital Order backup.'); }
   };
   fr.readAsText(file);
@@ -1417,7 +1528,7 @@ $('sampleBtn').onclick = function(){
   if(busyNo()) return;
   var sh = show();
   if(sh.routines.length && !sh.sample && !confirm('Replace your list with the sample recital?')) return;
-  $('roster').value = SAMPLE; sh.order = null; sh.act1 = -1; sh.routines = []; sh.sample = false; sh.dancerGap = {};
+  $('roster').value = SAMPLE; sh.order = null; sh.act1 = -1; sh.routines = []; sh.sample = false;
   if(!readList(true)) return;
   track('sample'); build('fresh');
 };
