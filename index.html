@@ -815,6 +815,9 @@ var SRC = (function(){ try{
   if(v){ sessionStorage.setItem('ro.src', v); return v; }
   return sessionStorage.getItem('ro.src') || '';
 }catch(e){ return ''; } })();
+/* Letters carry one via per recipient, "rol1-<5 hex>" (FACTORY 7, user 11-25: each recipient gets their own code so we can see who spread it).
+   Funnel copies use the batch part ("rol1") so the pre-registered tests keep one name; via-<full> and the PER_EV copies say whose link it was. */
+var SRCG = SRC.split('-')[0], PER_EV = {'own-list':1, 'order-used':1, 'buy-click':1};
 var FUNNEL_EV = {'tool-start':1, 'roster-read':1, 'own-list':1, 'order-built':1, 'order-used':1, 'order-moved':1, 'print-order':1, 'print-quick':1, 'print-cards':1,
                  'pro-view':1, 'pro-limit':1, 'buy-click':1, 'pro-unlocked':1, 'pro-gift':1};
 var ONCE = {}, QUEUE = [], SENDING = false, GC_READY = 0;
@@ -822,7 +825,8 @@ var ONCE = {}, QUEUE = [], SENDING = false, GC_READY = 0;
 function track(name){
   try{
     if(SRC.indexOf('selftest') === 0){ QUEUE.push(name + '.' + SRC); drain(); return; }   // self-tests only ever send "<event>.selftest*" (media-c 11-24), never the real names
-    if(SRC && FUNNEL_EV[name]) QUEUE.push(name + '.' + SRC);
+    if(SRC && FUNNEL_EV[name]) QUEUE.push(name + '.' + SRCG);
+    if(SRC !== SRCG && PER_EV[name]) QUEUE.push(name + '.' + SRC);
     QUEUE.push(name); drain();
   }catch(e){}
 }
@@ -1365,7 +1369,7 @@ document.addEventListener('keydown', function(e){
 });
 
 /* ---------- outputs ---------- */
-function today(){ try{ return new Date().toLocaleDateString(undefined, {year: 'numeric', month: 'long', day: 'numeric'}); }catch(e){ return ''; } }
+function today(){ try{ return new Date().toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'}); }catch(e){ return ''; } }
 function foot(){ return '<p class="foot">Printed ' + esc(today()) + ' · Made with Recital Order, free at samsbench.com/recital-order</p>'; }
 function doPrint(html, ev){
   $('printArea').innerHTML = '<div class="pa">' + html + '</div>';
